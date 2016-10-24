@@ -1,0 +1,47 @@
+syntax="proto3";
+
+package iface;
+
+service BfOnline {
+    rpc Add(AddRequest) returns(AddResponse) {};
+    rpc Test(TestRequest) returns(TestResponse) {};
+    rpc Info(InfoRequest) returns(InfoResponse) {};
+}
+
+service BfOffline {
+    rpc Create(CreateRequest) returns(CreateResponse) {};
+    rpc Deploy(DeployRequest) returns(DeployRequest) {};
+}
+
+message AddRequest {
+    required string bf_name = 1;
+    repeated string key = 2;
+}
+
+message AddResponse {
+    repeated bool suc = 1;
+}
+
+message TestRequest {
+    required string bf_name = 1;
+    repeated string key = 2;
+}
+
+message TestResponse {
+    repeated bool exists = 1;
+}
+
+message InfoRequest {
+    required bf_name = 1
+}
+
+message InfoResponse {
+    required int32 Capacity = 1;  //M
+    required int32 ErrorRate = 2; //r
+    required int32 HashFunc = 3; //k
+    required int32 Keys = 4; //n
+    required int32 Storage = 5; //total memory
+    required float FillRate = 6;
+}
+
+
