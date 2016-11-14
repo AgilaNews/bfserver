@@ -6,13 +6,12 @@ import (
 	"math"
     "io"
     "encoding/binary"
-    "github.com/tylertreat/BoomFilters"
 )
 
 // BloomFilter implements a classic Bloom filter. A Bloom filter has a non-zero
 // probability of false positives and a zero probability of false negatives.
 type BloomFilter struct {
-	buckets *boom.Buckets    // filter data
+	buckets *Buckets    // filter data
 	hash    hash.Hash64 // hash function (kernel for all k functions)
 	m       uint        // filter size
 	k       uint        // number of hash functions
@@ -22,12 +21,12 @@ type BloomFilter struct {
 // NewBloomFilter creates a new Bloom filter optimized to store n items with a
 // specified target false-positive rate.
 func NewBloomFilter(n uint, fpRate float64) *BloomFilter {
-	m := boom.OptimalM(n, fpRate)
+	m := OptimalM(n, fpRate)
 	return &BloomFilter{
-		buckets: boom.NewBuckets(m, 1),
+		buckets: NewBuckets(m, 1),
 		hash:    fnv.New64(),
 		m:       m,
-		k:       boom.OptimalK(fpRate),
+		k:       OptimalK(fpRate),
 	}
 }
 
@@ -79,7 +78,7 @@ func (b *BloomFilter) Test(data []byte) bool {
 
 // Add will add the data to the Bloom filter. It returns the filter to allow
 // for chaining.
-func (b *BloomFilter) Add(data []byte) boom.Filter {
+func (b *BloomFilter) Add(data []byte) Filter {
 	lower, upper := hashKernel(data, b.hash)
 
 	// Set the K bits.
@@ -148,11 +147,3 @@ func (b *BloomFilter) WriteTo(stream io.Writer) (int64, error) {
     return write, err
 }
 
-// hashKernel returns the upper and lower base hash values from which the k
-// hashes are derived.
-func hashKernel(data []byte, hash hash.Hash64) (uint32, uint32) {
-    hash.Write(data)
-    sum := hash.Sum(nil)
-    hash.Reset()
-    return binary.BigEndian.Uint32(sum[4:8]), binary.BigEndian.Uint32(sum[0:4])
-}
