@@ -6,21 +6,68 @@ package bloom
  *  @Link    : ${link}
  *  @Describe: rotated bloomfilter manager
  */
-
 import (
-	"error"
-	"fmt"
-	"os"
+    "errors"
 )
 
-type BloomFilter interface {
-	Test(data []byte) bool
-	Add(data []byte) *BloomFilter
-	TestAndAdd()
-	//info interface
-	Capacity() uint
-	K() uint
-	Count() uint
-	EstimatedFillRatio() float64
-	FillRatio() float64
+type RotatedBFManager struct {
+    m           map[string]*RotatedBloomFilter
 }
+
+func NewRotatedBFManager () *RotatedBFManager{
+    m := make(map[string]*RotatedBloomFilter)
+    return &RotatedBFManager {
+        m:  m,
+    }
+}
+
+func (r *RotatedBFManager) Create(name string, rep int, n uint, fpRate float64) error {
+    _, ok := r.m[name]
+    if ok {
+        return errors.New(name + " exists already")
+    }
+
+    r.m[name] = NewRotatedBloomFilter(rep, n, name, fpRate)
+    return nil
+}
+
+func (r *RotatedBFManager) Add(name string, keys []string) (int, error) {
+    bf, ok := r.m[name]
+    if !ok {
+        return 0, errors.New(name + " does not exit")
+    }
+
+    bf.BatchAdd(keys)
+    return len(keys), nil
+}
+
+func (r *RotatedBFManager) Filter(name string, keys []string) ([]bool, error) {
+    var ret []bool
+    bf, ok := r.m[name]
+    if !ok {
+        return ret, errors.New(name + " does not exit")
+    }
+
+    ret = bf.BatchTest(keys)
+    return ret, nil
+}
+
+func (r *RotatedBFManager) Destroy(name string) error {
+    bf, ok := r.m[name]
+    if !ok {
+        return errors.New(name + " does not exit")
+    }
+
+    bf.Destroy()
+    return nil
+}
+
+func (r *RotatedBFManager) Dump(name string) error {
+    bf, ok := r.m[name]
+    if !ok {
+        return errors.New(name + " does not exit")
+    }
+
+    return bf.Dump()
+}
+
