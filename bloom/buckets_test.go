@@ -1,4 +1,4 @@
-package boom
+package bloom
 
 import (
 	"bytes"

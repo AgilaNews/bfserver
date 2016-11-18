@@ -7,67 +7,84 @@ package bloom
  *  @Describe: rotated bloomfilter manager
  */
 import (
-    "errors"
+	"fmt"
+	"sync"
+	"time"
 )
 
-type RotatedBFManager struct {
-    m           map[string]*RotatedBloomFilter
+const (
+	FILTER_CLASSIC = "classic"
+	FILTER_ROTATED = "rotated"
+)
+
+type BloomFilterOptions struct {
+	Name     string
+	DumpPath string
+
+	N         uint
+	ErrorRate float64
+
+	R              uint
+	RotateInterval time.Time
 }
 
-func NewRotatedBFManager () *RotatedBFManager{
-    m := make(map[string]*RotatedBloomFilter)
-    return &RotatedBFManager {
-        m:  m,
-    }
+type BloomFilterManager struct {
+	sync.RWMutex
+
+	Filters  map[string]Filter
+	TotalMem uint64
 }
 
-func (r *RotatedBFManager) Create(name string, rep int, n uint, fpRate float64) error {
-    _, ok := r.m[name]
-    if ok {
-        return errors.New(name + " exists already")
-    }
-
-    r.m[name] = NewRotatedBloomFilter(rep, n, name, fpRate)
-    return nil
+func NewBloomFilterManager() (*BloomFilterManager, error) {
+	return &BloomFilterManager{
+		Filters: make(map[string]Filter),
+	}, nil
 }
 
-func (r *RotatedBFManager) Add(name string, keys []string) (int, error) {
-    bf, ok := r.m[name]
-    if !ok {
-        return 0, errors.New(name + " does not exit")
-    }
-
-    bf.BatchAdd(keys)
-    return len(keys), nil
+func isOptionsValid(options BloomFilterOptions) error {
+	return nil
 }
 
-func (r *RotatedBFManager) Filter(name string, keys []string) ([]bool, error) {
-    var ret []bool
-    bf, ok := r.m[name]
-    if !ok {
-        return ret, errors.New(name + " does not exit")
-    }
+func (m *BloomFilterManager) CreateNewBloomFilter(t string, options BloomFilterOptions) (Filter, error) {
+	var filter Filter
+	var err error
 
-    ret = bf.BatchTest(keys)
-    return ret, nil
+	if err = isOptionsValid(options); err != nil {
+		return nil, err
+	}
+
+	switch t {
+	case FILTER_CLASSIC:
+		filter, err = NewClassicBloomFilter(options)
+	case FILTER_ROTATED:
+		filter, err = NewRotatedBloomFilter(options)
+	default:
+		return nil, fmt.Errorf("invalid bf type: %s", t)
+	}
+
+	m.Lock()
+	defer m.Unlock()
+	m.Filters[options.Name] = filter
+
+	return filter, nil
 }
 
-func (r *RotatedBFManager) Destroy(name string) error {
-    bf, ok := r.m[name]
-    if !ok {
-        return errors.New(name + " does not exit")
-    }
+func (m *BloomFilterManager) GetBloomFilter(t string) (Filter, error) {
+	m.RLock()
+	defer m.RUnlock()
 
-    bf.Destroy()
-    return nil
+	f, ok := m.Filters[t]
+	if !ok {
+		return f, fmt.Errorf("filter non exists")
+	}
+
+	return f, nil
 }
 
-func (r *RotatedBFManager) Dump(name string) error {
-    bf, ok := r.m[name]
-    if !ok {
-        return errors.New(name + " does not exit")
-    }
+func (m BloomFilterManager) Persist() {
 
-    return bf.Dump()
 }
 
+func (m *BloomFilterManager) Recovery() error {
+	return nil
+}

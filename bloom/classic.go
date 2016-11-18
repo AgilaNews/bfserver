@@ -1,57 +1,58 @@
 package bloom
 
 import (
+	"encoding/binary"
 	"hash"
 	"hash/fnv"
+	"io"
 	"math"
-    "io"
-    "encoding/binary"
+	"os"
 )
 
-// BloomFilter implements a classic Bloom filter. A Bloom filter has a non-zero
-// probability of false positives and a zero probability of false negatives.
-type BloomFilter struct {
-	buckets *Buckets    // filter data
-	hash    hash.Hash64 // hash function (kernel for all k functions)
-	m       uint        // filter size
-	k       uint        // number of hash functions
-	count   uint        // number of items added
+type ClassicBloomFilter struct {
+	name  string
+	m     uint // filter size
+	k     uint // number of hash functions
+	count uint // number of items added
+
+	buckets  *Buckets    // filter data
+	hash     hash.Hash64 // hash function (kernel for all k functions)
+	dumpPath string
 }
 
-// NewBloomFilter creates a new Bloom filter optimized to store n items with a
-// specified target false-positive rate.
-func NewBloomFilter(n uint, fpRate float64) *BloomFilter {
-	m := OptimalM(n, fpRate)
-	return &BloomFilter{
-		buckets: NewBuckets(m, 1),
-		hash:    fnv.New64(),
-		m:       m,
-		k:       OptimalK(fpRate),
-	}
+func NewClassicBloomFilter(options BloomFilterOptions) (Filter, error) {
+	m := OptimalM(options.N, options.ErrorRate)
+
+	return &ClassicBloomFilter{
+		name:     options.Name,
+		buckets:  NewBuckets(m, 1),
+		hash:     fnv.New64(),
+		m:        m,
+		k:        OptimalK(options.ErrorRate),
+		dumpPath: options.DumpPath,
+	}, nil
 }
 
-// Capacity returns the Bloom filter capacity, m.
-func (b *BloomFilter) Capacity() uint {
+func (b *ClassicBloomFilter) Name() string {
+	return b.name
+}
+func (b *ClassicBloomFilter) Capacity() uint {
 	return b.m
 }
 
-// K returns the number of hash functions.
-func (b *BloomFilter) K() uint {
+func (b *ClassicBloomFilter) K() uint {
 	return b.k
 }
 
-// Count returns the number of items added to the filter.
-func (b *BloomFilter) Count() uint {
+func (b *ClassicBloomFilter) Count() uint {
 	return b.count
 }
 
-// EstimatedFillRatio returns the current estimated ratio of set bits.
-func (b *BloomFilter) EstimatedFillRatio() float64 {
+func (b *ClassicBloomFilter) EstimatedFillRatio() float64 {
 	return 1 - math.Exp((-float64(b.count)*float64(b.k))/float64(b.m))
 }
 
-// FillRatio returns the ratio of set bits.
-func (b *BloomFilter) FillRatio() float64 {
+func (b *ClassicBloomFilter) FillRatio() float64 {
 	sum := uint32(0)
 	for i := uint(0); i < b.buckets.Count(); i++ {
 		sum += b.buckets.Get(i)
@@ -59,14 +60,9 @@ func (b *BloomFilter) FillRatio() float64 {
 	return float64(sum) / float64(b.m)
 }
 
-// Test will test for membership of the data and returns true if it is a
-// member, false if not. This is a probabilistic test, meaning there is a
-// non-zero probability of false positives but a zero probability of false
-// negatives.
-func (b *BloomFilter) Test(data []byte) bool {
+func (b *ClassicBloomFilter) Test(data []byte) bool {
 	lower, upper := hashKernel(data, b.hash)
 
-	// If any of the K bits are not set, then it's not a member.
 	for i := uint(0); i < b.k; i++ {
 		if b.buckets.Get((uint(lower)+uint(upper)*i)%b.m) == 0 {
 			return false
@@ -76,12 +72,9 @@ func (b *BloomFilter) Test(data []byte) bool {
 	return true
 }
 
-// Add will add the data to the Bloom filter. It returns the filter to allow
-// for chaining.
-func (b *BloomFilter) Add(data []byte) Filter {
+func (b *ClassicBloomFilter) Add(data []byte) Filter {
 	lower, upper := hashKernel(data, b.hash)
 
-	// Set the K bits.
 	for i := uint(0); i < b.k; i++ {
 		b.buckets.Set((uint(lower)+uint(upper)*i)%b.m, 1)
 	}
@@ -90,13 +83,10 @@ func (b *BloomFilter) Add(data []byte) Filter {
 	return b
 }
 
-// TestAndAdd is equivalent to calling Test followed by Add. It returns true if
-// the data is a member, false if not.
-func (b *BloomFilter) TestAndAdd(data []byte) bool {
+func (b *ClassicBloomFilter) TestAndAdd(data []byte) bool {
 	lower, upper := hashKernel(data, b.hash)
 	member := true
 
-	// If any of the K bits are not set, then it's not a member.
 	for i := uint(0); i < b.k; i++ {
 		idx := (uint(lower) + uint(upper)*i) % b.m
 		if b.buckets.Get(idx) == 0 {
@@ -109,41 +99,53 @@ func (b *BloomFilter) TestAndAdd(data []byte) bool {
 	return member
 }
 
-// Reset restores the Bloom filter to its original state. It returns the filter
-// to allow for chaining.
-func (b *BloomFilter) Reset() *BloomFilter {
+func (b *ClassicBloomFilter) Reset() {
 	b.buckets.Reset()
-	return b
 }
 
-// SetHash sets the hashing function used in the filter.
-// For the effect on false positive rates see: https://github.com/tylertreat/BoomFilters/pull/1
-func (b *BloomFilter) SetHash(h hash.Hash64) {
+func (b *ClassicBloomFilter) SetHash(h hash.Hash64) {
 	b.hash = h
 }
 
-// ReadFrom reads a binary representation of Buckets (such as might
-// have been written by WriteTo()) from an i/o stream. It returns the number
-// of bytes read.
-func (b *BloomFilter) ReadFrom(stream io.Reader) (int64, error) {
-    var count uint64
-    err := binary.Read(stream, binary.BigEndian, &count)
-    if err != nil {
-        return 0, err
-    }
-    read, err := b.buckets.ReadFrom(stream)
-    b.count = uint(count)
-    return read, err
-} 
+func (b *ClassicBloomFilter) Load() error {
+	f, err := os.OpenFile(b.dumpPath, os.O_WRONLY|os.O_CREATE, os.ModePerm)
 
-// WriteTo writes a binary representation of Buckets to an i/o stream.
-// It returns the number of bytes written.
-func (b *BloomFilter) WriteTo(stream io.Writer) (int64, error) {
-    err := binary.Write(stream, binary.BigEndian, uint64(b.count))
-    if err != nil {
-        return 0, err
-    }
-    write, err := b.buckets.WriteTo(stream)
-    return write, err
+	if err != nil {
+		return err
+	}
+
+	_, err = b.LoadTo(f)
+	return err
 }
 
+func (b *ClassicBloomFilter) LoadTo(stream io.Reader) (int64, error) {
+	var count uint64
+
+	err := binary.Read(stream, binary.BigEndian, &count)
+	if err != nil {
+		return 0, err
+	}
+	read, err := b.buckets.Load(stream)
+	b.count = uint(count)
+	return read, err
+}
+
+func (b *ClassicBloomFilter) Dump() error {
+	f, err := os.OpenFile(b.dumpPath, os.O_WRONLY|os.O_CREATE, os.ModePerm)
+
+	if err != nil {
+		return err
+	}
+
+	_, err = b.DumpTo(f)
+	return err
+}
+
+func (b *ClassicBloomFilter) DumpTo(stream io.Writer) (int64, error) {
+	err := binary.Write(stream, binary.BigEndian, uint64(b.count))
+	if err != nil {
+		return 0, err
+	}
+	write, err := b.buckets.Dump(stream)
+	return write, err
+}

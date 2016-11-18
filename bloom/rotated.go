@@ -14,127 +14,143 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"hash"
 	"io"
 	"io/ioutil"
 	"os"
 	"path"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
+
+	"github.com/alecthomas/log4go"
 )
 
 type RotatedBloomFilter struct {
-	r            int     // Number of repliates
-	n            uint    // Number of items
-	fpRate       float64 // false-positive rate
-	blName       string  // The name of this bl
-	index        int     // which replicate to drop
-	replications []*BloomFilter
-	chs          []chan int
+	sync.RWMutex
+
+	name string
+	r    uint // R is how many rounds keeped
+
+	current  int
+	dumpPath string
+
+	rotateInterval time.Time
+	innerFilters   []Filter
 }
 
-var defaultDumpPath string = "./BLDumpPath/"
-var max_days int = 100
-
-func NewRotatedBloomFilter(r int, n uint, name string, fpRate float64) *RotatedBloomFilter {
-	if r > max_days {
-		fmt.Println("[replicats limit]:" + strconv.Itoa(max_days))
-		return nil
-	}
-	rep := make([]*BloomFilter, r)
-	ch := make([]chan int, r)
-	for i := 0; i < r; i++ {
-		rep[i] = NewBloomFilter(n, fpRate)
-		ch[i] = make(chan int)
+func NewRotatedBloomFilter(options BloomFilterOptions) (Filter, error) {
+	innerFilters := make([]Filter, options.R)
+	for i := 0; i < int(options.R); i++ {
+		if f, err := NewClassicBloomFilter(options); err != nil {
+			return nil, err
+		} else {
+			innerFilters[i] = f
+		}
 	}
 
 	return &RotatedBloomFilter{
-		r:            r,
-		n:            n,
-		fpRate:       fpRate,
-		blName:       name,
-		index:        0,
-		replications: rep,
-		chs:          ch,
+		name:           options.Name,
+		r:              options.R,
+		rotateInterval: options.RotateInterval,
+
+		dumpPath:     options.DumpPath,
+		current:      0,
+		innerFilters: innerFilters,
+	}, nil
+}
+
+func (b *RotatedBloomFilter) Name() string {
+	return b.name
+}
+
+func (b *RotatedBloomFilter) Capacity() uint {
+	return b.innerFilters[b.current].Capacity()
+}
+
+func (b *RotatedBloomFilter) Count() uint {
+	return b.innerFilters[b.current].Count()
+}
+
+func (b *RotatedBloomFilter) EstimatedFillRatio() float64 {
+	return b.innerFilters[b.current].EstimatedFillRatio()
+}
+
+func (b *RotatedBloomFilter) FillRatio() float64 {
+	return b.innerFilters[b.current].FillRatio()
+}
+
+func (b *RotatedBloomFilter) K() uint {
+	return b.innerFilters[b.current].K()
+}
+
+func (b *RotatedBloomFilter) Reset() {
+	for _, filter := range b.innerFilters {
+		filter.Reset()
 	}
 }
 
-func (b *RotatedBloomFilter) BatchAdd(data []string) {
-	for _, str := range data {
-		b.Add(str)
+func (b *RotatedBloomFilter) SetHash(h hash.Hash64) {
+	for _, filter := range b.innerFilters {
+		filter.SetHash(h)
 	}
 }
 
-func (b *RotatedBloomFilter) Add(data string) {
-	//fmt.Println(data)
-	for i := 0; i < b.r; i++ {
-		go b._add([]byte(data), i)
+func (b *RotatedBloomFilter) Add(key []byte) Filter {
+	chs := make([]chan bool, b.r)
+
+	for i := 0; i < int(b.r); i++ {
+		go func(ch chan bool) {
+			b.innerFilters[i].Add(key)
+
+			ch <- true
+		}(chs[i])
 	}
 
-	for _, ch := range b.chs {
+	for _, ch := range chs {
 		<-ch
 	}
+
+	return b
 }
 
-func (b *RotatedBloomFilter) _add(data []byte, i int) {
-	b.replications[i].Add(data)
-	b.chs[i] <- i
+func (b *RotatedBloomFilter) Test(key []byte) bool {
+	return b.innerFilters[b.current].Test(key)
 }
 
 func (b *RotatedBloomFilter) DropOneRep() {
-	b.replications[b.index].Reset()
-	b.index = (b.index + 1) % b.r
-}
+	b.innerFilters[b.current].Reset()
 
-func (b *RotatedBloomFilter) BatchTest(data []string) []bool {
-	ret := make([]bool, len(data))
-	for i, str := range data {
-		ret[i] = b.Test(str)
-	}
-	return ret
-}
-
-func (b *RotatedBloomFilter) Test(data string) bool {
-	return b.replications[b.index].Test([]byte(data))
-}
-
-func (b *RotatedBloomFilter) Info() {
-	fmt.Println(
-		"Number of items added: " + strconv.FormatUint(uint64(b.replications[b.index].Count()),
-			10))
-	fmt.Println(
-		"Number of hash func: " + strconv.FormatUint(uint64(b.replications[b.index].K()),
-			10))
-	fmt.Println(
-		"Filter size:" + strconv.FormatUint(uint64(b.replications[b.index].Capacity()),
-			10))
-}
-
-func Exists(filename string) bool {
-	_, err := os.Stat(filename)
-	return err == nil || os.IsExist(err)
+	b.current = (b.current + 1) % int(b.r)
 }
 
 func (b *RotatedBloomFilter) Destroy() {
-	dumpPath := path.Join(defaultDumpPath, b.blName)
-	if Exists(dumpPath) {
+	dumpPath := path.Join(b.dumpPath, b.name)
+
+	if exists(dumpPath) {
 		err := os.RemoveAll(dumpPath)
 		if err != nil {
 			fmt.Println(err.Error())
 		}
 	}
 
-	for i := 0; i < b.r; i++ {
-		b.replications[i] = nil
+	for i := 0; i < int(b.r); i++ {
+		b.innerFilters[i] = nil
 	}
 }
 
-func (b *RotatedBloomFilter) SetName(name string) {
-	b.blName = name
+func (b *RotatedBloomFilter) DumpTo(io.Writer) (int64, error) {
+	return 0, nil
+}
+
+func (b *RotatedBloomFilter) LoadTo(io.Reader) (int64, error) {
+	return 0, nil
 }
 
 func (b *RotatedBloomFilter) Dump() error {
-	dumpPath := path.Join(defaultDumpPath, b.blName)
-	if !Exists(dumpPath) {
+	dumpPath := path.Join(b.dumpPath, b.name)
+	if !exists(dumpPath) {
 		err := os.MkdirAll(dumpPath, os.ModePerm)
 		if err != nil {
 			return err
@@ -143,15 +159,40 @@ func (b *RotatedBloomFilter) Dump() error {
 
 	err := b.dumpMeta()
 	if err != nil {
-		fmt.Println(err.Error())
+		return err
 	}
 
 	if fileInfo, _ := os.Stat(dumpPath); fileInfo.IsDir() {
-		for i := 0; i < b.r; i++ {
-			go b.dumpOne(i)
+		chs := make([]chan bool, b.r)
+
+		for i := 0; i < int(b.r); i++ {
+			go func(ch chan bool) {
+				dumpFile := path.Join(b.dumpPath, b.name, fmt.Sprintf("%d.dump", i))
+				if exists(dumpFile) {
+					if exists(dumpFile + ".old") {
+						os.Remove(dumpFile + ".old")
+					}
+					os.Rename(dumpFile, dumpFile+".old")
+				}
+
+				zipbuf := new(bytes.Buffer)
+				w := zlib.NewWriter(zipbuf)
+
+				buf := new(bytes.Buffer)
+				b.innerFilters[i].DumpTo(buf)
+				_, err := w.Write(buf.Bytes())
+				w.Close()
+
+				if err != nil {
+					return
+				}
+
+				ioutil.WriteFile(dumpFile, zipbuf.Bytes(), os.ModePerm)
+				ch <- true
+			}(chs[i])
 		}
 
-		for _, ch := range b.chs {
+		for _, ch := range chs {
 			<-ch
 		}
 	}
@@ -160,7 +201,7 @@ func (b *RotatedBloomFilter) Dump() error {
 }
 
 func (b *RotatedBloomFilter) dumpMeta() error {
-	dumpFile := path.Join(defaultDumpPath, b.blName, "meta.dump")
+	dumpFile := path.Join(b.dumpPath, b.name, "meta.dump")
 	buf := new(bytes.Buffer)
 
 	err := binary.Write(buf, binary.BigEndian, int32(b.r))
@@ -168,17 +209,7 @@ func (b *RotatedBloomFilter) dumpMeta() error {
 		return err
 	}
 
-	err = binary.Write(buf, binary.BigEndian, uint64(b.n))
-	if err != nil {
-		return err
-	}
-
-	err = binary.Write(buf, binary.BigEndian, b.fpRate)
-	if err != nil {
-		return err
-	}
-
-	err = binary.Write(buf, binary.BigEndian, int32(b.index))
+	err = binary.Write(buf, binary.BigEndian, int32(b.current))
 	if err != nil {
 		return err
 	}
@@ -186,50 +217,24 @@ func (b *RotatedBloomFilter) dumpMeta() error {
 	return ioutil.WriteFile(dumpFile, buf.Bytes(), os.ModePerm)
 }
 
-func (b *RotatedBloomFilter) dumpOne(index int) {
-	dumpFile := path.Join(defaultDumpPath, b.blName, strconv.Itoa(index)+".dump")
-	if Exists(dumpFile) {
-		if Exists(dumpFile + ".old") {
-			os.Remove(dumpFile + ".old")
-		}
-		os.Rename(dumpFile, dumpFile+".old")
-	}
-
-	zipbuf := new(bytes.Buffer)
-	w := zlib.NewWriter(zipbuf)
-
-	buf := new(bytes.Buffer)
-	b.replications[index].WriteTo(buf)
-	_, err := w.Write(buf.Bytes())
-	w.Close()
-
-	if err != nil {
-		return
-	}
-
-	ioutil.WriteFile(dumpFile, zipbuf.Bytes(), os.ModePerm)
-	b.chs[index] <- index
-}
-
-func (b *RotatedBloomFilter) Load(filepath string) error {
-	if !Exists(filepath) {
+func (b *RotatedBloomFilter) Load() error {
+	if !exists(b.dumpPath) {
 		fmt.Println("File path doesn't exist" + "filepath")
 		return nil
 	}
 
-	file, _ := os.Stat(filepath)
+	file, _ := os.Stat(b.dumpPath)
 	if !file.IsDir() {
 		return nil
 	}
 
-	dir, err := ioutil.ReadDir(filepath)
+	dir, err := ioutil.ReadDir(b.dumpPath)
 	if err != nil {
 		return err
 	}
 
-	err = b.loadMeta(path.Join(filepath, "meta.dump"))
+	err = b.loadMeta(path.Join(b.dumpPath, "meta.dump"))
 	if err != nil {
-		fmt.Println(err.Error())
 		return err
 	}
 	var dumpfiles []string
@@ -239,30 +244,48 @@ func (b *RotatedBloomFilter) Load(filepath string) error {
 		}
 
 		if strings.HasSuffix(strings.ToLower(fi.Name()), ".dump") {
-			// index.xx.dump is ok
 			indexStr := strings.SplitN(fi.Name(), ".", 2)[0]
 			if index, err := strconv.Atoi(indexStr); err == nil {
 				if index < 0 {
-					fmt.Println("index error")
+					log4go.Warn("index error")
 					continue
 				}
 
-				dumpfiles = append(dumpfiles, path.Join(filepath, strconv.Itoa(index)+".dump"))
+				dumpfiles = append(dumpfiles, path.Join(b.dumpPath, strconv.Itoa(index)+".dump"))
 			}
 		}
 	}
 
-	if len(dumpfiles) != b.r {
-		fmt.Println("Different replication numbers")
-		return errors.New("Different replication numbers")
+	if len(dumpfiles) != int(b.r) {
+		return fmt.Errorf("Different replication numbers")
 	}
+
+	chs := make([]chan error, len(dumpfiles))
 
 	for i, dumpfile := range dumpfiles {
-		go b.loadOne(dumpfile, i)
+		go func(ch chan error) {
+			if !exists(dumpfile) {
+				ch <- fmt.Errorf("non-exist file name: %s", dumpfile)
+			}
+
+			file, _ := os.Open(dumpfile)
+			defer file.Close()
+			r, _ := zlib.NewReader(bufio.NewReader(file))
+			defer r.Close()
+
+			buf := new(bytes.Buffer)
+			io.Copy(buf, r)
+			_, err := b.innerFilters[i].LoadTo(buf)
+
+			ch <- err
+		}(chs[i])
 	}
 
-	for _, ch := range b.chs {
-		<-ch
+	for _, ch := range chs {
+		e := <-ch
+		if e != nil {
+			return e
+		}
 	}
 
 	return nil
@@ -270,10 +293,8 @@ func (b *RotatedBloomFilter) Load(filepath string) error {
 
 func (b *RotatedBloomFilter) loadMeta(filename string) error {
 	var r, index int32
-	var n uint64
-	var fpRate float64
 
-	if !Exists(filename) {
+	if !exists(filename) {
 		return errors.New("File doesn't exist: " + filename)
 	}
 
@@ -289,41 +310,17 @@ func (b *RotatedBloomFilter) loadMeta(filename string) error {
 		return err
 	}
 
-	err = binary.Read(tmp, binary.BigEndian, &n)
-	if err != nil {
-		return err
-	}
-
-	err = binary.Read(tmp, binary.BigEndian, &fpRate)
-	if err != nil {
-		return err
-	}
-
 	err = binary.Read(tmp, binary.BigEndian, &index)
 	if err != nil {
 		return err
 	}
-	b.r = int(r)
-	b.n = uint(n)
-	b.fpRate = fpRate
-	b.index = int(index)
+
+	b.r = uint(r)
+	b.current = int(index)
 	return nil
 }
 
-func (b *RotatedBloomFilter) loadOne(filename string, index int) error {
-	if !Exists(filename) {
-		return errors.New("File doesn't exist: " + filename)
-	}
-
-	file, _ := os.Open(filename)
-	defer file.Close()
-	r, _ := zlib.NewReader(bufio.NewReader(file))
-	defer r.Close()
-
-	buf := new(bytes.Buffer)
-	io.Copy(buf, r)
-	_, err := b.replications[index].ReadFrom(buf)
-
-	b.chs[index] <- index
-	return err
+func exists(filename string) bool {
+	_, err := os.Stat(filename)
+	return err == nil || os.IsExist(err)
 }
