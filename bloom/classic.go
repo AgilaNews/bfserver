@@ -2,11 +2,11 @@ package bloom
 
 import (
 	"encoding/binary"
+	"fmt"
 	"hash"
 	"hash/fnv"
 	"io"
 	"math"
-	"os"
 )
 
 type ClassicBloomFilter struct {
@@ -15,21 +15,23 @@ type ClassicBloomFilter struct {
 	k     uint // number of hash functions
 	count uint // number of items added
 
-	buckets  *Buckets    // filter data
-	hash     hash.Hash64 // hash function (kernel for all k functions)
-	dumpPath string
+	buckets *Buckets    // filter data
+	hash    hash.Hash64 // hash function (kernel for all k functions)
 }
 
-func NewClassicBloomFilter(options BloomFilterOptions) (Filter, error) {
+func NewClassicBloomFilter(options FilterOptions) (Filter, error) {
+	if options.ErrorRate == 0 || options.N == 0 {
+		return nil, fmt.Errorf("illegal params")
+	}
+
 	m := OptimalM(options.N, options.ErrorRate)
 
 	return &ClassicBloomFilter{
-		name:     options.Name,
-		buckets:  NewBuckets(m, 1),
-		hash:     fnv.New64(),
-		m:        m,
-		k:        OptimalK(options.ErrorRate),
-		dumpPath: options.DumpPath,
+		name:    options.Name,
+		buckets: NewBuckets(m, 1),
+		hash:    fnv.New64(),
+		m:       m,
+		k:       OptimalK(options.ErrorRate),
 	}, nil
 }
 
@@ -107,45 +109,24 @@ func (b *ClassicBloomFilter) SetHash(h hash.Hash64) {
 	b.hash = h
 }
 
-func (b *ClassicBloomFilter) Load() error {
-	f, err := os.OpenFile(b.dumpPath, os.O_WRONLY|os.O_CREATE, os.ModePerm)
-
-	if err != nil {
-		return err
-	}
-
-	_, err = b.LoadTo(f)
-	return err
-}
-
-func (b *ClassicBloomFilter) LoadTo(stream io.Reader) (int64, error) {
+func (b *ClassicBloomFilter) Load(stream io.Reader) error {
 	var count uint64
 
 	err := binary.Read(stream, binary.BigEndian, &count)
 	if err != nil {
-		return 0, err
+		return err
 	}
-	read, err := b.buckets.Load(stream)
+	_, err = b.buckets.Load(stream)
 	b.count = uint(count)
-	return read, err
+	return err
 }
 
-func (b *ClassicBloomFilter) Dump() error {
-	f, err := os.OpenFile(b.dumpPath, os.O_WRONLY|os.O_CREATE, os.ModePerm)
-
+func (b *ClassicBloomFilter) Dump(stream io.Writer) error {
+	err := binary.Write(stream, binary.BigEndian, uint64(b.count))
 	if err != nil {
 		return err
 	}
 
-	_, err = b.DumpTo(f)
+	_, err = b.buckets.Dump(stream)
 	return err
-}
-
-func (b *ClassicBloomFilter) DumpTo(stream io.Writer) (int64, error) {
-	err := binary.Write(stream, binary.BigEndian, uint64(b.count))
-	if err != nil {
-		return 0, err
-	}
-	write, err := b.buckets.Dump(stream)
-	return write, err
 }

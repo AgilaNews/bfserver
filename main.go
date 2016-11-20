@@ -5,5 +5,5 @@ import (
 )
 
 func main() {
-	_ := bloom.NewBloomFilterManager()
+	_, _ = bloom.NewBloomFilterManager()
 }

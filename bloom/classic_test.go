@@ -7,7 +7,7 @@ import (
 
 // Ensures that Capacity returns the number of bits, m, in the Bloom filter.
 func TestBloomCapacity(t *testing.T) {
-	f, _ := NewClassicBloomFilter(BloomFilterOptions{N: 100, ErrorRate: 0.1})
+	f, _ := NewClassicBloomFilter(FilterOptions{N: 100, ErrorRate: 0.1})
 
 	if capacity := f.Capacity(); capacity != 480 {
 		t.Errorf("Expected 480, got %d", capacity)
@@ -16,7 +16,7 @@ func TestBloomCapacity(t *testing.T) {
 
 // Ensures that K returns the number of hash functions in the Bloom Filter.
 func TestBloomK(t *testing.T) {
-	f, _ := NewClassicBloomFilter(BloomFilterOptions{N: 100, ErrorRate: 0.1})
+	f, _ := NewClassicBloomFilter(FilterOptions{N: 100, ErrorRate: 0.1})
 
 	if k := f.K(); k != 4 {
 		t.Errorf("Expected 4, got %d", k)
@@ -25,7 +25,7 @@ func TestBloomK(t *testing.T) {
 
 // Ensures that Count returns the number of items added to the filter.
 func TestBloomCount(t *testing.T) {
-	f, _ := NewClassicBloomFilter(BloomFilterOptions{N: 100, ErrorRate: 0.1})
+	f, _ := NewClassicBloomFilter(FilterOptions{N: 100, ErrorRate: 0.1})
 	for i := 0; i < 10; i++ {
 		f.Add([]byte(strconv.Itoa(i)))
 	}
@@ -37,7 +37,7 @@ func TestBloomCount(t *testing.T) {
 
 // Ensures that EstimatedFillRatio returns the correct approximation.
 func TestBloomEstimatedFillRatio(t *testing.T) {
-	f, _ := NewClassicBloomFilter(BloomFilterOptions{N: 100, ErrorRate: 0.5})
+	f, _ := NewClassicBloomFilter(FilterOptions{N: 100, ErrorRate: 0.5})
 	for i := 0; i < 100; i++ {
 		f.Add([]byte(strconv.Itoa(i)))
 	}
@@ -49,7 +49,7 @@ func TestBloomEstimatedFillRatio(t *testing.T) {
 
 // Ensures that FillRatio returns the ratio of set bits.
 func TestBloomFillRatio(t *testing.T) {
-	f, _ := NewClassicBloomFilter(BloomFilterOptions{N: 100, ErrorRate: 0.1})
+	f, _ := NewClassicBloomFilter(FilterOptions{N: 100, ErrorRate: 0.1})
 	f.Add([]byte(`a`))
 	f.Add([]byte(`b`))
 	f.Add([]byte(`c`))
@@ -61,7 +61,7 @@ func TestBloomFillRatio(t *testing.T) {
 
 // Ensures that Test, Add, and TestAndAdd behave correctly.
 func TestBloomTestAndAdd(t *testing.T) {
-	f, _ := NewClassicBloomFilter(BloomFilterOptions{N: 100, ErrorRate: 0.01})
+	f, _ := NewClassicBloomFilter(FilterOptions{N: 100, ErrorRate: 0.01})
 
 	// `a` isn't in the filter.
 	if f.Test([]byte(`a`)) {
@@ -85,7 +85,7 @@ func TestBloomTestAndAdd(t *testing.T) {
 
 // Ensures that Reset sets every bit to zero.
 func TestBloomReset(t *testing.T) {
-	fs, _ := NewClassicBloomFilter(BloomFilterOptions{N: 100, ErrorRate: 0.1})
+	fs, _ := NewClassicBloomFilter(FilterOptions{N: 100, ErrorRate: 0.1})
 	f := fs.(*ClassicBloomFilter)
 	for i := 0; i < 1000; i++ {
 		f.Add([]byte(strconv.Itoa(i)))
@@ -102,7 +102,7 @@ func TestBloomReset(t *testing.T) {
 
 func BenchmarkBloomAdd(b *testing.B) {
 	b.StopTimer()
-	f, _ := NewClassicBloomFilter(BloomFilterOptions{N: 100000, ErrorRate: 0.1})
+	f, _ := NewClassicBloomFilter(FilterOptions{N: 100000, ErrorRate: 0.1})
 	data := make([][]byte, b.N)
 	for i := 0; i < b.N; i++ {
 		data[i] = []byte(strconv.Itoa(i))
@@ -116,7 +116,7 @@ func BenchmarkBloomAdd(b *testing.B) {
 
 func BenchmarkBloomTest(b *testing.B) {
 	b.StopTimer()
-	f, _ := NewClassicBloomFilter(BloomFilterOptions{N: 100000, ErrorRate: 0.1})
+	f, _ := NewClassicBloomFilter(FilterOptions{N: 100000, ErrorRate: 0.1})
 	data := make([][]byte, b.N)
 	for i := 0; i < b.N; i++ {
 		data[i] = []byte(strconv.Itoa(i))
