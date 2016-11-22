@@ -1,10 +1,11 @@
 package bloom
 
 import (
-	"bytes"
-	"encoding/binary"
+	"encoding/gob"
 	"io"
 	"sync"
+
+	"github.com/alecthomas/log4go"
 )
 
 type Buckets struct {
@@ -14,6 +15,13 @@ type Buckets struct {
 	bucketSize uint8
 	max        uint8
 	count      uint
+}
+
+type BucketsDump struct {
+	Data  []byte
+	Max   uint8
+	Size  uint8
+	Count uint
 }
 
 func NewBuckets(count uint, bucketSize uint8) *Buckets {
@@ -107,79 +115,36 @@ func (b *Buckets) i_set_bits(offset, length, bits uint32) {
 	b.data[byteIndex] = byte(uint32(b.data[byteIndex]) | ((bits & bitMask) << byteOffset))
 }
 
-func (b *Buckets) Dump(stream io.Writer) (int64, error) {
+func (b *Buckets) Dump(stream io.Writer) error {
 	b.RLock()
 	defer b.RUnlock()
-	err := binary.Write(stream, binary.BigEndian, b.bucketSize)
-	if err != nil {
-		return 0, err
+
+	enc := gob.NewEncoder(stream)
+	d := BucketsDump{
+		Max:   b.max,
+		Data:  b.data,
+		Count: b.count,
+		Size:  b.bucketSize,
 	}
-	err = binary.Write(stream, binary.BigEndian, b.max)
-	if err != nil {
-		return 0, err
-	}
-	err = binary.Write(stream, binary.BigEndian, uint64(b.count))
-	if err != nil {
-		return 0, err
-	}
-	err = binary.Write(stream, binary.BigEndian, uint64(len(b.data)))
-	if err != nil {
-		return 0, err
-	}
-	err = binary.Write(stream, binary.BigEndian, b.data)
-	if err != nil {
-		return 0, err
-	}
-	return int64(len(b.data) + 2*binary.Size(uint8(0)) + 2*binary.Size(uint64(0))), err
+
+	return enc.Encode(&d)
 }
 
-func (b *Buckets) Load(stream io.Reader) (int64, error) {
+func (b *Buckets) Load(stream io.Reader) error {
 	b.Lock()
 	defer b.Unlock()
 
-	var bucketSize, max uint8
-	var count, len uint64
-	err := binary.Read(stream, binary.BigEndian, &bucketSize)
-	if err != nil {
-		return 0, err
-	}
-	err = binary.Read(stream, binary.BigEndian, &max)
-	if err != nil {
-		return 0, err
-	}
-	err = binary.Read(stream, binary.BigEndian, &count)
-	if err != nil {
-		return 0, err
-	}
-	err = binary.Read(stream, binary.BigEndian, &len)
-	if err != nil {
-		return 0, err
-	}
-	data := make([]byte, len)
-	err = binary.Read(stream, binary.BigEndian, &data)
-	if err != nil {
-		return 0, err
-	}
-	b.bucketSize = bucketSize
-	b.max = max
-	b.count = uint(count)
-	b.data = data
-	return int64(int(len) + 2*binary.Size(uint8(0)) + 2*binary.Size(uint64(0))), nil
-}
-
-func (b *Buckets) GobEncode() ([]byte, error) {
-	var buf bytes.Buffer
-	_, err := b.Dump(&buf)
-	if err != nil {
-		return nil, err
+	d := &BucketsDump{}
+	dec := gob.NewDecoder(stream)
+	if err := dec.Decode(d); err != nil {
+		log4go.Info("load bucket error: %+v", err)
+		return err
 	}
 
-	return buf.Bytes(), nil
-}
+	b.max = d.Max
+	b.data = d.Data
+	b.bucketSize = d.Size
+	b.count = d.Count
 
-func (b *Buckets) GobDecode(data []byte) error {
-	buf := bytes.NewBuffer(data)
-	_, err := b.Load(buf)
-
-	return err
+	return nil
 }

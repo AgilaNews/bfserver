@@ -1,6 +1,7 @@
 package bloom
 
 import (
+	"bytes"
 	"compress/gzip"
 	"encoding/binary"
 	"encoding/gob"
@@ -24,6 +25,8 @@ const (
 var (
 	ILLEGAL_LOAD_FORMAT = fmt.Errorf("illegal load format")
 	DUMP_ERROR          = fmt.Errorf("dump error")
+
+	Manager *FilterManager
 )
 
 type FilterOptions struct {
@@ -33,7 +36,8 @@ type FilterOptions struct {
 	ErrorRate float64
 
 	R              uint
-	RotateInterval time.Time
+	RotateInterval time.Duration
+	persister      FilterPersister
 }
 
 type FilterManager struct {
@@ -53,7 +57,7 @@ type Filter interface {
 	Add([]byte) Filter
 
 	Reset()
-	SetHash(h hash.Hash64)
+	PeriodMaintaince() error
 
 	//info interface
 	Name() string
@@ -86,17 +90,17 @@ func hashKernel(data []byte, hash hash.Hash64) (uint32, uint32) {
 
 func BatchAdd(f Filter, keys []string, wait bool) {
 	if wait {
-		chs := make([]chan bool, len(keys))
+		ch := make(chan bool, len(keys))
 
-		for i, key := range keys {
-			go func(k string, ch chan bool) {
+		for _, key := range keys {
+			go func(k string) {
 				f.Add([]byte(k))
 
 				ch <- true
-			}(key, chs[i])
+			}(key)
 		}
 
-		for _, ch := range chs {
+		for i := 0; i < len(keys); i++ {
 			<-ch
 		}
 	} else {
@@ -108,6 +112,10 @@ func BatchAdd(f Filter, keys []string, wait bool) {
 
 func BatchTest(f Filter, keys []string) []bool {
 	chs := make([]chan bool, len(keys))
+	for i := 0; i < len(keys); i++ {
+		chs[i] = make(chan bool)
+	}
+
 	ret := make([]bool, len(keys))
 
 	for i, str := range keys {
@@ -169,7 +177,7 @@ func (m *FilterManager) GetBloomFilter(t string) (Filter, error) {
 	return f, nil
 }
 
-func LoadFilter(reader io.Reader) (Filter, error) {
+func loadFilter(reader io.Reader) (Filter, error) {
 	dumpHeader := DumpHeader{}
 
 	dec := gob.NewDecoder(reader)
@@ -182,23 +190,27 @@ func LoadFilter(reader io.Reader) (Filter, error) {
 		return nil, ILLEGAL_LOAD_FORMAT
 	}
 
+	buf := new(bytes.Buffer)
 	greader, err := gzip.NewReader(reader)
 	if err != nil {
 		log4go.Warn("decompress error: %v", err)
 		return nil, err
 	}
+	io.Copy(buf, greader)
+	greader.Close()
 
 	switch dumpHeader.FilterType {
 	case FILTER_CLASSIC:
 		f := &ClassicBloomFilter{}
-		if err := f.Load(greader); err != nil {
+		if err := f.Load(buf); err != nil {
+			log4go.Warn("classic fiter load error:%v", err)
 			return nil, err
 		}
 
 		return f, nil
 	case FILTER_ROTATED:
 		f := &RotatedBloomFilter{}
-		if err := f.Load(greader); err != nil {
+		if err := f.Load(buf); err != nil {
 			return nil, err
 		}
 
@@ -209,7 +221,7 @@ func LoadFilter(reader io.Reader) (Filter, error) {
 	}
 }
 
-func DumpFilter(writer io.Writer, filter Filter) error {
+func dumpFilter(writer io.Writer, filter Filter) error {
 	dumpHeader := DumpHeader{
 		Magic: MAGIC_NUM,
 	}
@@ -230,5 +242,7 @@ func DumpFilter(writer io.Writer, filter Filter) error {
 	}
 
 	gwriter := gzip.NewWriter(writer)
+	defer gwriter.Close()
+
 	return filter.Dump(gwriter)
 }

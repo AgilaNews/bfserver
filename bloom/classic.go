@@ -1,12 +1,19 @@
 package bloom
 
 import (
-	"encoding/binary"
+	"encoding/gob"
 	"fmt"
 	"hash"
 	"hash/fnv"
 	"io"
 	"math"
+
+	"github.com/alecthomas/log4go"
+)
+
+const (
+	FNV_HASH64 = "fnv.sum64"
+	FNV_HASH32 = "fnv.sum32"
 )
 
 type ClassicBloomFilter struct {
@@ -17,6 +24,13 @@ type ClassicBloomFilter struct {
 
 	buckets *Buckets    // filter data
 	hash    hash.Hash64 // hash function (kernel for all k functions)
+}
+
+type ClassicBloomFilterDumpHeader struct {
+	Name  string
+	M     uint
+	K     uint
+	Count uint
 }
 
 func NewClassicBloomFilter(options FilterOptions) (Filter, error) {
@@ -52,6 +66,10 @@ func (b *ClassicBloomFilter) Count() uint {
 
 func (b *ClassicBloomFilter) EstimatedFillRatio() float64 {
 	return 1 - math.Exp((-float64(b.count)*float64(b.k))/float64(b.m))
+}
+
+func (b *ClassicBloomFilter) PeriodMaintaince() error {
+	return nil
 }
 
 func (b *ClassicBloomFilter) FillRatio() float64 {
@@ -110,23 +128,40 @@ func (b *ClassicBloomFilter) SetHash(h hash.Hash64) {
 }
 
 func (b *ClassicBloomFilter) Load(stream io.Reader) error {
-	var count uint64
-
-	err := binary.Read(stream, binary.BigEndian, &count)
+	dec := gob.NewDecoder(stream)
+	header := ClassicBloomFilterDumpHeader{}
+	err := dec.Decode(&header)
 	if err != nil {
+		log4go.Warn("read class bloom filter header error")
 		return err
 	}
-	_, err = b.buckets.Load(stream)
-	b.count = uint(count)
-	return err
+
+	b.name = header.Name
+	b.k = header.K
+	b.m = header.M
+	b.count = header.Count
+	b.buckets = NewBuckets(b.m, 1)
+	log4go.Info("loaded filter header with name:%s k:%d m:%d count:%d", b.name, b.k, b.m, b.count)
+
+	return b.buckets.Load(stream)
 }
 
 func (b *ClassicBloomFilter) Dump(stream io.Writer) error {
-	err := binary.Write(stream, binary.BigEndian, uint64(b.count))
-	if err != nil {
-		return err
+	enc := gob.NewEncoder(stream)
+
+	header := ClassicBloomFilterDumpHeader{
+		Name:  b.name,
+		K:     b.k,
+		M:     b.m,
+		Count: b.count,
 	}
 
-	_, err = b.buckets.Dump(stream)
-	return err
+	err := enc.Encode(&header)
+	if err != nil {
+		log4go.Warn("encode error: %v", err)
+		return err
+	}
+	log4go.Info("dumped filter header with name:%s k:%d m:%d count:%d", b.name, b.k, b.m, b.count)
+
+	return b.buckets.Dump(stream)
 }

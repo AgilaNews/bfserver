@@ -1,9 +1,26 @@
 package bloom
 
 import (
+	"bytes"
 	"strconv"
 	"testing"
 )
+
+func bucketsEqual(a, b *Buckets) bool {
+	if bytes.Compare(a.data, b.data) != 0 || a.bucketSize != b.bucketSize || a.max != b.max || a.count != b.count {
+		return false
+	}
+
+	return true
+}
+
+func classicBloomFilterEqual(a, b *ClassicBloomFilter) bool {
+	if a.name != b.name || a.m != b.m || a.k != b.k || a.count != b.count {
+		return false
+	}
+
+	return bucketsEqual(a.buckets, b.buckets)
+}
 
 // Ensures that Capacity returns the number of bits, m, in the Bloom filter.
 func TestBloomCapacity(t *testing.T) {

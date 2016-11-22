@@ -10,7 +10,7 @@ package bloom
 import (
 	"bytes"
 	"encoding/gob"
-	"hash"
+	"fmt"
 	"io"
 	"sync"
 	"time"
@@ -22,17 +22,22 @@ const (
 	MAGIC_NUM = 0x2345fe13
 )
 
+var (
+	_ = fmt.Println
+)
+
 type RotatedBloomFilter struct {
 	sync.RWMutex
 
 	name string
 	r    uint // R is how many rounds keeped
 
-	current  uint
-	dumpPath string
+	current uint
 
-	rotateInterval time.Time
+	rotateInterval time.Duration
+	lastRotated    time.Time
 	innerFilters   []Filter
+	persister      FilterPersister
 }
 
 type RotatedBloomFilterHeader struct {
@@ -48,7 +53,12 @@ type RotatedBloomFilterChunk struct {
 }
 
 func NewRotatedBloomFilter(options FilterOptions) (Filter, error) {
+	if options.R <= 0 {
+		return nil, fmt.Errorf("invalid r, at least one")
+	}
+
 	innerFilters := make([]Filter, options.R)
+
 	for i := 0; i < int(options.R); i++ {
 		if f, err := NewClassicBloomFilter(options); err != nil {
 			return nil, err
@@ -61,9 +71,11 @@ func NewRotatedBloomFilter(options FilterOptions) (Filter, error) {
 		name:           options.Name,
 		r:              options.R,
 		rotateInterval: options.RotateInterval,
+		lastRotated:    time.Now(),
 
 		current:      0,
 		innerFilters: innerFilters,
+		persister:    options.persister,
 	}, nil
 }
 
@@ -97,24 +109,20 @@ func (b *RotatedBloomFilter) Reset() {
 	}
 }
 
-func (b *RotatedBloomFilter) SetHash(h hash.Hash64) {
-	for _, filter := range b.innerFilters {
-		filter.SetHash(h)
-	}
-}
-
 func (b *RotatedBloomFilter) Add(key []byte) Filter {
-	chs := make([]chan bool, b.r)
+	b.Lock()
+	defer b.Unlock()
+	ch := make(chan bool, b.r)
 
 	for i := 0; i < int(b.r); i++ {
-		go func(ch chan bool) {
-			b.innerFilters[i].Add(key)
+		go func(filter Filter) {
+			filter.Add(key)
 
 			ch <- true
-		}(chs[i])
+		}(b.innerFilters[i])
 	}
 
-	for _, ch := range chs {
+	for i := 0; i < int(b.r); i++ {
 		<-ch
 	}
 
@@ -122,12 +130,38 @@ func (b *RotatedBloomFilter) Add(key []byte) Filter {
 }
 
 func (b *RotatedBloomFilter) Test(key []byte) bool {
+	b.RLock()
+	defer b.RUnlock()
 	return b.innerFilters[b.current].Test(key)
 }
 
-func (b *RotatedBloomFilter) DropOneRep() {
-	b.innerFilters[b.current].Reset()
+func (b *RotatedBloomFilter) PeriodMaintaince() error {
+	if time.Now().Sub(b.lastRotated) >= b.rotateInterval {
+		if b.persister != nil {
+			writer, err := b.persister.NewWriter(b.name)
+			log4go.Info("period rotated bloom filter: %s", b.name)
+			if err != nil {
+				log4go.Warn("create writer error:%v", err)
+				return err
+			}
+			//dump filter is thread-safe
+			if err = dumpFilter(writer, b); err != nil {
+				log4go.Warn("dumpfilter error:%v", err)
+				return err
+			} else {
+				b.Lock()
+				defer b.Unlock()
+				b.dropOneRep()
+				b.lastRotated = time.Now()
+			}
+		}
+	}
 
+	return nil
+}
+
+func (b *RotatedBloomFilter) dropOneRep() {
+	b.innerFilters[b.current].Reset()
 	b.current = (b.current + 1) % b.r
 }
 
@@ -135,6 +169,8 @@ func (b *RotatedBloomFilter) Destroy() {
 }
 
 func (b *RotatedBloomFilter) Load(r io.Reader) error {
+	b.RLock()
+	defer b.RUnlock()
 	dec := gob.NewDecoder(r)
 
 	header := RotatedBloomFilterHeader{}
@@ -165,7 +201,7 @@ func (b *RotatedBloomFilter) Load(r io.Reader) error {
 			return ILLEGAL_LOAD_FORMAT
 		}
 
-		if filter, err := LoadFilter(bytes.NewBuffer(chunk.Data)); err != nil {
+		if filter, err := loadFilter(bytes.NewBuffer(chunk.Data)); err != nil {
 			log4go.Warn("load filter error: %v", err)
 			return ILLEGAL_LOAD_FORMAT
 		} else {
@@ -177,6 +213,8 @@ func (b *RotatedBloomFilter) Load(r io.Reader) error {
 }
 
 func (b *RotatedBloomFilter) Dump(w io.Writer) error {
+	b.Lock()
+	defer b.Unlock()
 	enc := gob.NewEncoder(w)
 
 	if err := enc.Encode(RotatedBloomFilterHeader{
@@ -192,7 +230,7 @@ func (b *RotatedBloomFilter) Dump(w io.Writer) error {
 	for i := 0; i < int(b.r); i++ {
 		buffer := new(bytes.Buffer)
 
-		if err := b.innerFilters[i].Dump(buffer); err != nil {
+		if err := dumpFilter(buffer, b.innerFilters[i]); err != nil {
 			log4go.Warn("write inner filter %d error: %v", i, err)
 			return err
 		}
