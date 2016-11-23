@@ -37,7 +37,6 @@ type FilterOptions struct {
 
 	R              uint
 	RotateInterval time.Duration
-	persister      FilterPersister
 }
 
 type FilterManager struct {
@@ -57,7 +56,7 @@ type Filter interface {
 	Add([]byte) Filter
 
 	Reset()
-	PeriodMaintaince() error
+	PeriodMaintaince(FilterPersister) error
 
 	//info interface
 	Name() string

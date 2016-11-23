@@ -68,7 +68,6 @@ func TestRotated(t *testing.T) {
 		N:              10000,
 		R:              7,
 		RotateInterval: time.Duration(1 * time.Second),
-		persister:      &TestPersister{},
 	})
 	if err != nil {
 		t.Errorf("create rotated filter error:%v", err)
@@ -78,7 +77,7 @@ func TestRotated(t *testing.T) {
 	f := c.(*RotatedBloomFilter)
 	before := f.lastRotated
 
-	if err := f.PeriodMaintaince(); err != nil {
+	if err := f.PeriodMaintaince(&TestPersister{}); err != nil {
 		t.Errorf("period maintance err:%v", err)
 		return
 	}
@@ -88,7 +87,7 @@ func TestRotated(t *testing.T) {
 	}
 
 	time.Sleep(1 * time.Second)
-	if err := f.PeriodMaintaince(); err != nil {
+	if err := f.PeriodMaintaince(&TestPersister{}); err != nil {
 		t.Errorf("period maitaince err: %v", err)
 		return
 	}
@@ -103,7 +102,7 @@ func TestRotated(t *testing.T) {
 
 	before = f.lastRotated
 	//maintaince again, should not rotated
-	if err := f.PeriodMaintaince(); err != nil {
+	if err := f.PeriodMaintaince(&TestPersister{}); err != nil {
 		t.Errorf("period maitaince err: %v", err)
 		return
 	}
@@ -115,15 +114,12 @@ func TestRotated(t *testing.T) {
 }
 
 func TestLoad(t *testing.T) {
-	p := TestPersister{}
-
 	c, err := NewRotatedBloomFilter(FilterOptions{
 		Name:           "test",
 		ErrorRate:      0.05,
 		N:              10000,
 		R:              7,
 		RotateInterval: time.Duration(1 * time.Second),
-		persister:      &p,
 	})
 	if err != nil {
 		t.Errorf("create rotated filter error:%v", err)

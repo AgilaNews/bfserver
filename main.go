@@ -2,8 +2,9 @@ package main
 
 import (
 	"github.com/AgilaNews/bfserver/bloom"
+	"github.com/alecthomas/log4go"
 )
 
 func main() {
-	_, _ = bloom.NewBloomFilterManager()
+	defer log4go.Global.Close()
 }

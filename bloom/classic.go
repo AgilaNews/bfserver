@@ -68,7 +68,7 @@ func (b *ClassicBloomFilter) EstimatedFillRatio() float64 {
 	return 1 - math.Exp((-float64(b.count)*float64(b.k))/float64(b.m))
 }
 
-func (b *ClassicBloomFilter) PeriodMaintaince() error {
+func (b *ClassicBloomFilter) PeriodMaintaince(FilterPersister) error {
 	return nil
 }
 

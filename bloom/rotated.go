@@ -37,7 +37,6 @@ type RotatedBloomFilter struct {
 	rotateInterval time.Duration
 	lastRotated    time.Time
 	innerFilters   []Filter
-	persister      FilterPersister
 }
 
 type RotatedBloomFilterHeader struct {
@@ -45,6 +44,9 @@ type RotatedBloomFilterHeader struct {
 	R       uint
 	Current uint
 	Name    string
+
+	RotatedInterval time.Duration
+	LastRotated     time.Time
 }
 
 type RotatedBloomFilterChunk struct {
@@ -75,7 +77,6 @@ func NewRotatedBloomFilter(options FilterOptions) (Filter, error) {
 
 		current:      0,
 		innerFilters: innerFilters,
-		persister:    options.persister,
 	}, nil
 }
 
@@ -90,7 +91,6 @@ func (b *RotatedBloomFilter) Capacity() uint {
 func (b *RotatedBloomFilter) Count() uint {
 	return b.innerFilters[b.current].Count()
 }
-
 func (b *RotatedBloomFilter) EstimatedFillRatio() float64 {
 	return b.innerFilters[b.current].EstimatedFillRatio()
 }
@@ -135,25 +135,23 @@ func (b *RotatedBloomFilter) Test(key []byte) bool {
 	return b.innerFilters[b.current].Test(key)
 }
 
-func (b *RotatedBloomFilter) PeriodMaintaince() error {
+func (b *RotatedBloomFilter) PeriodMaintaince(persister FilterPersister) error {
 	if time.Now().Sub(b.lastRotated) >= b.rotateInterval {
-		if b.persister != nil {
-			writer, err := b.persister.NewWriter(b.name)
-			log4go.Info("period rotated bloom filter: %s", b.name)
-			if err != nil {
-				log4go.Warn("create writer error:%v", err)
-				return err
-			}
-			//dump filter is thread-safe
-			if err = dumpFilter(writer, b); err != nil {
-				log4go.Warn("dumpfilter error:%v", err)
-				return err
-			} else {
-				b.Lock()
-				defer b.Unlock()
-				b.dropOneRep()
-				b.lastRotated = time.Now()
-			}
+		writer, err := persister.NewWriter(b.name)
+		log4go.Info("period rotated bloom filter: %s", b.name)
+		if err != nil {
+			log4go.Warn("create writer error:%v", err)
+			return err
+		}
+		//dump filter is thread-safe
+		if err = dumpFilter(writer, b); err != nil {
+			log4go.Warn("dumpfilter error:%v", err)
+			return err
+		} else {
+			b.Lock()
+			defer b.Unlock()
+			b.dropOneRep()
+			b.lastRotated = time.Now()
 		}
 	}
 
@@ -191,16 +189,21 @@ func (b *RotatedBloomFilter) Load(r io.Reader) error {
 
 	b.current = header.Current
 	b.name = header.Name
+	b.lastRotated = header.LastRotated
+	b.rotateInterval = header.RotatedInterval
 
 	b.innerFilters = make([]Filter, b.r)
 
 	for i := uint(0); i < b.r; i++ {
 		chunk := RotatedBloomFilterChunk{}
 		if err := dec.Decode(&chunk); err != nil {
-			log4go.Warn("get chunk of %d error", i)
+			log4go.Warn("get chunk of %d error: %v", i, err)
 			return ILLEGAL_LOAD_FORMAT
 		}
 
+		if len(chunk.Data) != int(chunk.BodyLen) {
+			log4go.Warn("chunk %d len %d not equal to data len %d", chunk.BodyLen, len(chunk.Data))
+		}
 		if filter, err := loadFilter(bytes.NewBuffer(chunk.Data)); err != nil {
 			log4go.Warn("load filter error: %v", err)
 			return ILLEGAL_LOAD_FORMAT
@@ -217,12 +220,16 @@ func (b *RotatedBloomFilter) Dump(w io.Writer) error {
 	defer b.Unlock()
 	enc := gob.NewEncoder(w)
 
-	if err := enc.Encode(RotatedBloomFilterHeader{
-		Magic:   MAGIC_NUM,
-		R:       b.r,
-		Current: b.current,
-		Name:    b.name,
-	}); err != nil {
+	header := RotatedBloomFilterHeader{
+		Magic:           MAGIC_NUM,
+		R:               b.r,
+		Current:         b.current,
+		Name:            b.name,
+		LastRotated:     b.lastRotated,
+		RotatedInterval: b.rotateInterval,
+	}
+
+	if err := enc.Encode(&header); err != nil {
 		log4go.Warn("write header error: %v", err)
 		return err
 	}
@@ -235,7 +242,7 @@ func (b *RotatedBloomFilter) Dump(w io.Writer) error {
 			return err
 		}
 
-		if err := enc.Encode(RotatedBloomFilterChunk{
+		if err := enc.Encode(&RotatedBloomFilterChunk{
 			BodyLen: int32(buffer.Len()),
 			Data:    buffer.Bytes(),
 		}); err != nil {
@@ -243,10 +250,12 @@ func (b *RotatedBloomFilter) Dump(w io.Writer) error {
 			return err
 		}
 
-		if err := enc.Encode(buffer.Bytes()); err != nil {
-			log4go.Warn("write chunked error: %v", err)
-			return err
-		}
+		/*
+			if err := enc.Encode(buffer.Bytes()); err != nil {
+				log4go.Warn("write chunked error: %v", err)
+				return err
+			}
+		*/
 	}
 
 	return nil

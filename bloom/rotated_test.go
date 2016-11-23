@@ -59,7 +59,6 @@ func TestRotatedFilterDumpLoad(t *testing.T) {
 		N:              10000,
 		R:              7,
 		RotateInterval: time.Duration(1 * time.Second),
-		persister:      &TestPersister{},
 	})
 	if err != nil {
 		t.Errorf("create rotated filter error:%v", err)
