@@ -6,6 +6,7 @@ import (
 	"os/signal"
 	"runtime"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/AgilaNews/bfserver/bloom"
@@ -19,6 +20,7 @@ func main() {
 	done := make(chan bool)
 	defer log4go.Global.Close()
 
+	bloom.UseGzip = g.Config.Persist.UseGzip
 	log4go.Info("current cpu: %d", runtime.NumCPU())
 	rand.Seed(time.Now().UTC().UnixNano())
 
@@ -63,8 +65,7 @@ func main() {
 	}()
 
 	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, os.Interrupt, os.Kill)
-
+	signal.Notify(sigs, syscall.SIGTERM)
 OUTFOR:
 	for {
 		select {

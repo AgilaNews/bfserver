@@ -25,7 +25,7 @@ stop(){
 }
 
 restart(){
-    $SUPERVISORCTL -c $SUPERVISORD_CONF reload
+    $SUPERVISORCTL -c $SUPERVISORD_CONF restart bfserver
 }
 
 status(){

@@ -82,6 +82,7 @@ func (p *LocalFileFilterPersister) ListFilterNames() ([]string, error) {
 
 func (p *LocalFileFilterPersister) NewWriter(name string) (Writer, error) {
 	fullpath := filepath.Join(p.basePath, name+"."+strconv.FormatInt(time.Now().Unix(), 10))
+	time.Sleep(10 * time.Second)
 	if f, err := os.OpenFile(fullpath, os.O_WRONLY|os.O_CREATE, os.ModePerm); err != nil {
 		log4go.Info("get writer from %s error :%v", fullpath, err)
 		return nil, err
