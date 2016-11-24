@@ -6,47 +6,25 @@ package iface;
 service BloomFilterService {
     rpc Add(AddRequest) returns(EmptyMessage) {};
     rpc Test(TestRequest) returns(TestResponse) {};
+
+    //offline use
+    rpc Create(NewBloomFilterRequest) returns(EmptyMessage){};
     rpc Info(EmptyMessage) returns(InfoResponse) {};
 }
+
 
 enum BloomFilterType {
     CLASSIC = 0;
     ROTATED = 1;
 }
 
-enum DeployCompression {
-    NONE = 0;
-    GZIP = 1;
-}
-
-message CreateRequest {
-    string BloomFilterName = 1;
-    uint32 Capacity = 2;
-    uint32 ErrorRate = 3; // if not set, default set to 0.005
-    uint32 HashFuncCount = 4; //if not set, default set to 3
-
-    google.protobuf.Any Config = 5;
-}
-
-message RotatedBloomFilterConfig {
-    uint32 MaxKeepDay = 1;
-}
-
-message DeployRequest {
-    uint32 Total = 1;
-    bytes  Checksum = 2;
-    uint32 Slice = 3;
-    DeployCompression Compress = 4;
-    bytes  Chunk = 5;
-}
-
 message AddRequest {
-    string BloomFilterName = 1;
+    string Name = 1;
     repeated string Keys = 2;
 }
 
 message TestRequest {
-    string BloomFilterName = 1;
+    string Name = 1;
     repeated string Keys = 2;
 }
 
@@ -65,4 +43,19 @@ message InfoResponse {
 
 message EmptyMessage {
 
+}
+
+message NewBloomFilterRequest {
+    enum FilterType {
+        CLASSIC = 0;
+        ROTATED = 1;
+    }
+
+    FilterType Type = 1;
+    string Name = 2;
+    uint32 N = 3; //keys count
+    double ErrorRate = 4; //estimate error rate
+
+    int32 R = 5; //if rotated filter
+    int32 Interval = 6; //if rotated filter
 }

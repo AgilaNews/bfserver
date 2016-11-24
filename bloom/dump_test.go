@@ -60,6 +60,9 @@ func (t *TestPersister) NewWriter(filterName string) (Writer, error) {
 func (t *TestPersister) NewReader(filterName string) (Reader, error) {
 	return &t.buffer, nil
 }
+func (t *TestPersister) ListFilterNames() ([]string, error) {
+	return nil, nil
+}
 
 func TestRotated(t *testing.T) {
 	c, err := NewRotatedBloomFilter(FilterOptions{
@@ -81,7 +84,7 @@ func TestRotated(t *testing.T) {
 		t.Errorf("period maintance err:%v", err)
 		return
 	}
-	if f.lastRotated != before {
+	if f.lastRotated == before {
 		t.Errorf("should not rotated")
 		return
 	}
@@ -96,7 +99,7 @@ func TestRotated(t *testing.T) {
 		t.Errorf("should rotated")
 		return
 	}
-	if f.current != 1 {
+	if f.current != 2 {
 		t.Errorf("drop one error")
 	}
 

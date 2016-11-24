@@ -10,6 +10,9 @@ type Configuration struct {
 		Level   string `json:"level"`
 		Console bool   `json:"console"`
 	} `json:"log"`
+	Persist struct {
+		Path string `json:"path"`
+	} `json:"persist"`
 	Rpc struct {
 		BF struct {
 			Addr string `json:"addr"`

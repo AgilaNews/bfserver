@@ -73,7 +73,7 @@ func NewRotatedBloomFilter(options FilterOptions) (Filter, error) {
 		name:           options.Name,
 		r:              options.R,
 		rotateInterval: options.RotateInterval,
-		lastRotated:    time.Now(),
+		lastRotated:    time.Unix(0, 0),
 
 		current:      0,
 		innerFilters: innerFilters,
@@ -138,6 +138,7 @@ func (b *RotatedBloomFilter) Test(key []byte) bool {
 func (b *RotatedBloomFilter) PeriodMaintaince(persister FilterPersister) error {
 	if time.Now().Sub(b.lastRotated) >= b.rotateInterval {
 		writer, err := persister.NewWriter(b.name)
+		defer writer.Close()
 		log4go.Info("period rotated bloom filter: %s", b.name)
 		if err != nil {
 			log4go.Warn("create writer error:%v", err)

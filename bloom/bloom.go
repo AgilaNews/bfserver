@@ -42,8 +42,10 @@ type FilterOptions struct {
 type FilterManager struct {
 	sync.RWMutex
 
-	Filters  map[string]Filter
-	TotalMem uint64
+	stop      chan bool
+	persister FilterPersister
+	Filters   map[string]Filter
+	TotalMem  uint64
 }
 
 type DumpHeader struct {
@@ -130,13 +132,16 @@ func BatchTest(f Filter, keys []string) []bool {
 	return ret
 }
 
-func NewFilterManager() (*FilterManager, error) {
+func NewFilterManager(persister FilterPersister) (*FilterManager, error) {
 	return &FilterManager{
-		Filters: make(map[string]Filter),
+		Filters:   make(map[string]Filter),
+		persister: persister,
+		stop:      make(chan bool),
 	}, nil
 }
 
 func isOptionsValid(options FilterOptions) error {
+	//TODO add check if future
 	return nil
 }
 
@@ -161,7 +166,60 @@ func (m *FilterManager) CreateNewBloomFilter(t string, options FilterOptions) (F
 	defer m.Unlock()
 	m.Filters[options.Name] = filter
 
+	filter.PeriodMaintaince(m.persister)
 	return filter, nil
+}
+
+func (m *FilterManager) RecoverFilters() error {
+	m.Lock()
+	defer m.Unlock()
+
+	filterNames, err := m.persister.ListFilterNames()
+	if err != nil {
+		return err
+	}
+
+	for _, filterName := range filterNames {
+		reader, err := m.persister.NewReader(filterName)
+		if err != nil {
+			log4go.Warn("open filter reader for %s error:%v", filterName, err)
+			continue
+		}
+
+		filter, err := loadFilter(reader)
+		if err != nil {
+			log4go.Warn("load filter for %s error:%v", filterName, err)
+			continue
+		}
+
+		m.Filters[filterName] = filter
+	}
+
+	return nil
+}
+
+func (m *FilterManager) Work() {
+	ticker := time.NewTicker(time.Minute)
+
+OUTFOR:
+	for {
+		log4go.Info("manager ticker, start filters persit routine")
+
+		for _, filter := range m.Filters {
+			filter.PeriodMaintaince(m.persister)
+		}
+
+		select {
+		case <-m.stop:
+			log4go.Info("got stop signal, exits")
+			break OUTFOR
+		case <-ticker.C:
+		}
+	}
+}
+
+func (m *FilterManager) Stop() {
+	m.stop <- true
 }
 
 func (m *FilterManager) GetBloomFilter(t string) (Filter, error) {

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 
+	"github.com/AgilaNews/bfserver/bloom"
 	"github.com/AgilaNews/bfserver/g"
 	pb "github.com/AgilaNews/bfserver/iface"
 	"github.com/alecthomas/log4go"
@@ -15,7 +16,7 @@ type BloomFilterServer struct {
 	rpcServer *grpc.Server
 }
 
-func NewBloomFilterServer(model classify.Classification) (*BloomFilterServer, error) {
+func NewBloomFilterServer(manager *bloom.FilterManager) (*BloomFilterServer, error) {
 	var err error
 
 	c := &BloomFilterServer{}
@@ -28,9 +29,9 @@ func NewBloomFilterServer(model classify.Classification) (*BloomFilterServer, er
 
 	c.rpcServer = grpc.NewServer()
 
-	service, _ := NewBloomFilterService(model)
+	service, _ := NewBloomFilterService(manager)
 	log4go.Info("registering rpc service")
-	pb.RegisterClassificationServiceServer(c.rpcServer, service)
+	pb.RegisterBloomFilterServiceServer(c.rpcServer, service)
 
 	return c, nil
 }
