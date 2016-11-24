@@ -22,20 +22,35 @@ func NewBloomFilterService(manager *bloom.FilterManager) (*BloomFilterService, e
 }
 
 func (b *BloomFilterService) Add(ctx context.Context, req *pb.AddRequest) (*pb.EmptyMessage, error) {
+	log4go.Debug("Add %v", req)
+
 	resp := &pb.EmptyMessage{}
 
+	if len(req.Name) == 0 {
+		return nil, fmt.Errorf("empty request name")
+	}
+	if len(req.Keys) == 0 {
+		return nil, fmt.Errorf("keys count can't be zero")
+	}
 	filter, err := b.Manager.GetBloomFilter(req.Name)
 	if err != nil {
 		log4go.Warn("get bloomfilter name [%s] error", req.Name)
 		return nil, err
 	}
 
-	bloom.BatchAdd(filter, req.Keys, false)
+	bloom.BatchAdd(filter, req.Keys, !req.Async)
 	return resp, nil
 }
 
 func (b *BloomFilterService) Test(ctx context.Context, req *pb.TestRequest) (*pb.TestResponse, error) {
 	resp := &pb.TestResponse{}
+
+	if len(req.Name) == 0 {
+		return nil, fmt.Errorf("empty request name")
+	}
+	if len(req.Keys) == 0 {
+		return nil, fmt.Errorf("keys count can't be zero")
+	}
 
 	filter, err := b.Manager.GetBloomFilter(req.Name)
 	if err != nil {

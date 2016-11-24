@@ -21,6 +21,7 @@ enum BloomFilterType {
 message AddRequest {
     string Name = 1;
     repeated string Keys = 2;
+    bool Async = 3;
 }
 
 message TestRequest {
