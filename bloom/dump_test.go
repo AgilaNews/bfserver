@@ -1,6 +1,7 @@
 package bloom
 
 import (
+	"bufio"
 	"bytes"
 	"flag"
 	"fmt"
@@ -40,6 +41,31 @@ func TestDumpHeader(t *testing.T) {
 		}
 
 	}
+
+	c, err = NewRotatedBloomFilter(FilterOptions{
+		Name:           "test",
+		ErrorRate:      0.05,
+		N:              10000,
+		R:              7,
+		RotateInterval: time.Duration(1 * time.Second),
+	})
+
+	buffer = new(bytes.Buffer)
+	if err := dumpFilter(buffer, c); err != nil {
+		t.Errorf("dump filter error: %v", err)
+	} else {
+		f, err := loadFilter(buffer)
+		if err != nil {
+			t.Errorf("load filter error: %v", err)
+			return
+		}
+
+		loaded_filter := f.(*RotatedBloomFilter)
+		if !rotatedBloomfilterEquals(loaded_filter, c.(*RotatedBloomFilter)) {
+			t.Errorf("load filter type error")
+		}
+	}
+
 }
 
 type TestPersister struct {
@@ -57,11 +83,14 @@ func (b *TestBuffer) Close() error {
 func (t *TestPersister) NewWriter(filterName string) (Writer, error) {
 	return &t.buffer, nil
 }
-func (t *TestPersister) NewReader(filterName string) (Reader, error) {
-	return &t.buffer, nil
+func (t *TestPersister) NewReader(filterName string) (*bufio.Reader, error) {
+	return bufio.NewReader(&t.buffer), nil
 }
 func (t *TestPersister) ListFilterNames() ([]string, error) {
 	return nil, nil
+}
+func (t *TestPersister) UseGzip() bool {
+	return true
 }
 
 func TestRotated(t *testing.T) {
@@ -116,7 +145,7 @@ func TestRotated(t *testing.T) {
 	}
 }
 
-func TestLoad(t *testing.T) {
+func TestLoadRotated(t *testing.T) {
 	c, err := NewRotatedBloomFilter(FilterOptions{
 		Name:           "test",
 		ErrorRate:      0.05,

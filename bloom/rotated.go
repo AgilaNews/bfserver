@@ -18,10 +18,6 @@ import (
 	"github.com/alecthomas/log4go"
 )
 
-const (
-	MAGIC_NUM = 0x2345fe13
-)
-
 var (
 	_ = fmt.Println
 )
@@ -40,7 +36,6 @@ type RotatedBloomFilter struct {
 }
 
 type RotatedBloomFilterHeader struct {
-	Magic   uint
 	R       uint
 	Current uint
 	Name    string
@@ -136,9 +131,11 @@ func (b *RotatedBloomFilter) Test(key []byte) bool {
 }
 
 func (b *RotatedBloomFilter) PeriodMaintaince(persister FilterPersister) error {
+	log4go.Debug("now:%v lastrotated:%v interval:%v", time.Now(), b.lastRotated, b.rotateInterval)
 	if time.Now().Sub(b.lastRotated) >= b.rotateInterval {
 		writer, err := persister.NewWriter(b.name)
 		defer writer.Close()
+
 		log4go.Info("period rotated bloom filter: %s", b.name)
 		if err != nil {
 			log4go.Warn("create writer error:%v", err)
@@ -174,11 +171,7 @@ func (b *RotatedBloomFilter) Load(r io.Reader) error {
 
 	header := RotatedBloomFilterHeader{}
 	if err := dec.Decode(&header); err != nil {
-		log4go.Warn("write header error: %v", err)
-		return ILLEGAL_LOAD_FORMAT
-	}
-	if header.Magic != MAGIC_NUM {
-		log4go.Warn("magic number error")
+		log4go.Warn("load header error: %v", err)
 		return ILLEGAL_LOAD_FORMAT
 	}
 
@@ -222,7 +215,6 @@ func (b *RotatedBloomFilter) Dump(w io.Writer) error {
 	enc := gob.NewEncoder(w)
 
 	header := RotatedBloomFilterHeader{
-		Magic:           MAGIC_NUM,
 		R:               b.r,
 		Current:         b.current,
 		Name:            b.name,
@@ -250,13 +242,6 @@ func (b *RotatedBloomFilter) Dump(w io.Writer) error {
 			log4go.Warn("write chunked error: %v", err)
 			return err
 		}
-
-		/*
-			if err := enc.Encode(buffer.Bytes()); err != nil {
-				log4go.Warn("write chunked error: %v", err)
-				return err
-			}
-		*/
 	}
 
 	return nil

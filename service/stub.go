@@ -92,7 +92,7 @@ func (b *BloomFilterService) Create(ctx context.Context, req *pb.NewBloomFilterR
 		options.RotateInterval = time.Hour * time.Duration(req.Interval)
 	}
 
-	if _, err := b.Manager.CreateNewBloomFilter(t, options); err != nil {
+	if _, err := b.Manager.AddNewBloomFilter(t, options); err != nil {
 		log4go.Warn("create filter of %v error: %v", req, err)
 		return nil, fmt.Errorf("create filter error: %v", err)
 	} else {

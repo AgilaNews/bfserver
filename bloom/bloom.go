@@ -1,7 +1,6 @@
 package bloom
 
 import (
-	"bytes"
 	"compress/gzip"
 	"encoding/binary"
 	"encoding/gob"
@@ -20,6 +19,7 @@ const (
 
 	FILTER_CLASSIC = "classic"
 	FILTER_ROTATED = "rotated"
+	MAGIC_NUM      = 0x123553f3
 )
 
 var (
@@ -27,6 +27,7 @@ var (
 	DUMP_ERROR          = fmt.Errorf("dump error")
 
 	Manager *FilterManager
+	UseGzip = false
 )
 
 type FilterOptions struct {
@@ -49,8 +50,9 @@ type FilterManager struct {
 }
 
 type DumpHeader struct {
-	Magic      uint   //magic number of dump header
-	FilterType string //filter type
+	Magic          uint //magic number of dump header
+	FilterUsedGzip bool
+	FilterType     string //filter type
 }
 
 type Filter interface {
@@ -145,13 +147,19 @@ func isOptionsValid(options FilterOptions) error {
 	return nil
 }
 
-func (m *FilterManager) CreateNewBloomFilter(t string, options FilterOptions) (Filter, error) {
+func (m *FilterManager) AddNewBloomFilter(t string, options FilterOptions) (Filter, error) {
 	var filter Filter
 	var err error
 
 	if err = isOptionsValid(options); err != nil {
 		return nil, err
 	}
+
+	m.RLock()
+	if _, ok := m.Filters[options.Name]; ok {
+		return nil, fmt.Errorf("bloom filter exists")
+	}
+	m.RUnlock()
 
 	switch t {
 	case FILTER_CLASSIC:
@@ -164,8 +172,10 @@ func (m *FilterManager) CreateNewBloomFilter(t string, options FilterOptions) (F
 
 	m.Lock()
 	defer m.Unlock()
+
 	m.Filters[options.Name] = filter
 
+	log4go.Info("period maintaince %s", options.Name)
 	filter.PeriodMaintaince(m.persister)
 	return filter, nil
 }
@@ -199,13 +209,14 @@ func (m *FilterManager) RecoverFilters() error {
 }
 
 func (m *FilterManager) Work() {
-	ticker := time.NewTicker(time.Minute)
+	ticker := time.NewTicker(time.Second)
 
 OUTFOR:
 	for {
 		log4go.Info("manager ticker, start filters persit routine")
 
 		for _, filter := range m.Filters {
+			log4go.Trace("call period maintaince of %s", filter.Name())
 			filter.PeriodMaintaince(m.persister)
 		}
 
@@ -246,20 +257,21 @@ func loadFilter(reader io.Reader) (Filter, error) {
 		log4go.Warn("mismatch magic number")
 		return nil, ILLEGAL_LOAD_FORMAT
 	}
+	log4go.Trace("loaded header %+v", dumpHeader)
 
-	buf := new(bytes.Buffer)
-	greader, err := gzip.NewReader(reader)
-	if err != nil {
-		log4go.Warn("decompress error: %v", err)
-		return nil, err
+	if dumpHeader.FilterUsedGzip {
+		var err error
+		reader, err = gzip.NewReader(reader)
+		if err != nil {
+			log4go.Warn("decompress error: %v", err)
+			return nil, err
+		}
 	}
-	io.Copy(buf, greader)
-	greader.Close()
 
 	switch dumpHeader.FilterType {
 	case FILTER_CLASSIC:
 		f := &ClassicBloomFilter{}
-		if err := f.Load(buf); err != nil {
+		if err := f.Load(reader); err != nil {
 			log4go.Warn("classic fiter load error:%v", err)
 			return nil, err
 		}
@@ -267,7 +279,7 @@ func loadFilter(reader io.Reader) (Filter, error) {
 		return f, nil
 	case FILTER_ROTATED:
 		f := &RotatedBloomFilter{}
-		if err := f.Load(buf); err != nil {
+		if err := f.Load(reader); err != nil {
 			return nil, err
 		}
 
@@ -280,7 +292,8 @@ func loadFilter(reader io.Reader) (Filter, error) {
 
 func dumpFilter(writer io.Writer, filter Filter) error {
 	dumpHeader := DumpHeader{
-		Magic: MAGIC_NUM,
+		Magic:          MAGIC_NUM,
+		FilterUsedGzip: UseGzip,
 	}
 
 	switch filter.(type) {
@@ -298,8 +311,12 @@ func dumpFilter(writer io.Writer, filter Filter) error {
 		return DUMP_ERROR
 	}
 
-	gwriter := gzip.NewWriter(writer)
-	defer gwriter.Close()
+	if UseGzip {
+		gwriter := gzip.NewWriter(writer)
+		defer gwriter.Close()
 
-	return filter.Dump(gwriter)
+		return filter.Dump(gwriter)
+	} else {
+		return filter.Dump(writer)
+	}
 }
