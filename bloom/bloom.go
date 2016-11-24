@@ -122,9 +122,9 @@ func BatchTest(f Filter, keys []string) []bool {
 	ret := make([]bool, len(keys))
 
 	for i, str := range keys {
-		go func(ch chan bool) {
-			ch <- f.Test([]byte(str))
-		}(chs[i])
+		go func(ch chan bool, key []byte) {
+			ch <- f.Test(key)
+		}(chs[i], []byte(str))
 	}
 
 	for i, ch := range chs {
