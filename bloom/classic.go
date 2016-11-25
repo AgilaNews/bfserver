@@ -63,7 +63,22 @@ func (b *ClassicBloomFilter) EstimatedFillRatio() float64 {
 	return 1 - math.Exp((-float64(b.count)*float64(b.k))/float64(b.m))
 }
 
-func (b *ClassicBloomFilter) PeriodMaintaince(FilterPersister) error {
+func (b *ClassicBloomFilter) PeriodMaintaince(persister FilterPersister, force bool) error {
+	if force {
+		writer, err := persister.NewWriter(b.name)
+		defer writer.Close()
+
+		log4go.Info("period dump classic bloom filter: %s", b.name)
+		if err != nil {
+			log4go.Warn("create writer error:%v", err)
+			return err
+		}
+		if err = dumpFilter(writer, b); err != nil {
+			log4go.Warn("dumpfilter error:%v", err)
+			return err
+		}
+	}
+
 	return nil
 }
 

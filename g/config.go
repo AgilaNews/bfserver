@@ -16,8 +16,9 @@ type Configuration struct {
 		Console bool   `json:"console"`
 	} `json:"log"`
 	Persist struct {
-		Path    string `json:"path"`
-		UseGzip bool   `json:"use_gzip"`
+		Path             string `json:"path"`
+		UseGzip          bool   `json:"use_gzip"`
+		ForceDumpSeconds int    `json:"force_dump_seconds"`
 	} `json:"persist"`
 	Rpc struct {
 		BF struct {

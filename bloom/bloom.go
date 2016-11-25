@@ -48,6 +48,9 @@ type FilterManager struct {
 	persister FilterPersister
 	Filters   map[string]Filter
 	TotalMem  uint64
+
+	forceDumpPeriod time.Duration
+	lastForce       time.Time
 }
 
 type DumpHeader struct {
@@ -61,7 +64,7 @@ type Filter interface {
 	Add([]byte) Filter
 
 	Reset()
-	PeriodMaintaince(FilterPersister) error
+	PeriodMaintaince(persister FilterPersister, force bool) error
 
 	//info interface
 	Name() string
@@ -135,11 +138,12 @@ func BatchTest(f Filter, keys []string) []bool {
 	return ret
 }
 
-func NewFilterManager(persister FilterPersister) (*FilterManager, error) {
+func NewFilterManager(persister FilterPersister, forceDumpSeconds int) (*FilterManager, error) {
 	return &FilterManager{
-		Filters:   make(map[string]Filter),
-		persister: persister,
-		stop:      make(chan bool),
+		Filters:         make(map[string]Filter),
+		persister:       persister,
+		stop:            make(chan bool),
+		forceDumpPeriod: time.Duration(forceDumpSeconds) * time.Second,
 	}, nil
 }
 
@@ -177,7 +181,7 @@ func (m *FilterManager) AddNewBloomFilter(t string, options FilterOptions) (Filt
 	m.Filters[options.Name] = filter
 
 	log4go.Info("period maintaince %s", options.Name)
-	filter.PeriodMaintaince(m.persister)
+	filter.PeriodMaintaince(m.persister, true)
 	return filter, nil
 }
 
@@ -211,20 +215,35 @@ func (m *FilterManager) RecoverFilters() error {
 }
 
 func (m *FilterManager) Work() {
-	ticker := time.NewTicker(time.Second)
+	ticker := time.NewTicker(m.forceDumpPeriod)
 
 OUTFOR:
 	for {
-		//		log4go.Info("manager ticker, start filters persit routine")
+		force := false
 
+		if time.Now().Sub(m.lastForce) > m.forceDumpPeriod {
+			force = true
+		}
+
+		done := make(chan bool, len(m.Filters))
 		for _, filter := range m.Filters {
-			//			log4go.Trace("call period maintaince of %s", filter.Name())
-			filter.PeriodMaintaince(m.persister)
+			go func() {
+				filter.PeriodMaintaince(m.persister, force)
+
+				done <- true
+			}()
+		}
+
+		for i := 0; i < len(m.Filters); i++ {
+			<-done
 		}
 
 		select {
 		case <-m.stop:
-			log4go.Info("got stop signal, exits")
+			log4go.Info("got stop signal, exits, dump again")
+			for _, filter := range m.Filters {
+				filter.PeriodMaintaince(m.persister, true)
+			}
 			break OUTFOR
 		case <-ticker.C:
 		}

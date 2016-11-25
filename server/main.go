@@ -31,7 +31,7 @@ func main() {
 		panic("open persister erorr")
 	}
 
-	manager, err := bloom.NewFilterManager(persister)
+	manager, err := bloom.NewFilterManager(persister, g.Config.Persist.ForceDumpSeconds)
 	if err != nil {
 		panic("new filter manager error")
 	}
@@ -59,6 +59,9 @@ func main() {
 
 		manager.Work()
 		log4go.Info("manager gracefully quit")
+		//manager stop then close server
+		//this will gurante not stop too long
+		c.Stop()
 	}()
 
 	go func() {
@@ -73,14 +76,13 @@ func main() {
 		}()
 	}
 	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGTERM)
+	signal.Notify(sigs, syscall.SIGTERM, os.Interrupt)
 OUTFOR:
 	for {
 		select {
 		case <-sigs:
 			log4go.Info("get interrupt, gracefull stop")
-			c.Stop()
-			manager.Stop()
+			go manager.Stop()
 		case <-done:
 			log4go.Info("all routine done, exit")
 			break OUTFOR

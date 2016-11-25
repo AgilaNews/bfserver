@@ -130,9 +130,8 @@ func (b *RotatedBloomFilter) Test(key []byte) bool {
 	return b.innerFilters[b.current].Test(key)
 }
 
-func (b *RotatedBloomFilter) PeriodMaintaince(persister FilterPersister) error {
-	//	log4go.Debug("now:%v lastrotated:%v interval:%v", time.Now(), b.lastRotated, b.rotateInterval)
-	if time.Now().Sub(b.lastRotated) >= b.rotateInterval {
+func (b *RotatedBloomFilter) PeriodMaintaince(persister FilterPersister, force bool) error {
+	if time.Now().Sub(b.lastRotated) >= b.rotateInterval || force {
 		writer, err := persister.NewWriter(b.name)
 		defer writer.Close()
 
@@ -141,7 +140,6 @@ func (b *RotatedBloomFilter) PeriodMaintaince(persister FilterPersister) error {
 			log4go.Warn("create writer error:%v", err)
 			return err
 		}
-		//dump filter is thread-safe
 		if err = dumpFilter(writer, b); err != nil {
 			log4go.Warn("dumpfilter error:%v", err)
 			return err

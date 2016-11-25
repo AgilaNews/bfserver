@@ -11,7 +11,8 @@
     },
     "persist": {
         "path": "/data/bfserver/persist/",
-        "use_gzip": true
+        "use_gzip": true,
+        "force_dump_seconds": 60
     },
     "general": {
         "enable_gpref": true
