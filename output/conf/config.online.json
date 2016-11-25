@@ -2,7 +2,8 @@
     "log": {
         "path": "/data/logs/bfserver/bfserver.log",
         "level": "INFO",
-        "console": false
+        "console": false,
+        "max_keep_days": 15
     },
     "rpc": {
         "bf": {

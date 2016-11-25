@@ -11,9 +11,10 @@ var (
 
 type Configuration struct {
 	Log struct {
-		Path    string `json:"path"`
-		Level   string `json:"level"`
-		Console bool   `json:"console"`
+		Path        string `json:"path"`
+		Level       string `json:"level"`
+		Console     bool   `json:"console"`
+		MaxKeepDays int    `json:"max_keep_days"`
 	} `json:"log"`
 	Persist struct {
 		Path             string `json:"path"`
