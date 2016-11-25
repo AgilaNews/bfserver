@@ -38,7 +38,7 @@ func main() {
 		panic("recover filter error")
 	}
 
-	c, err := service.NewBloomFilterServer(manager)
+	c, err := service.NewBloomFilterServer(g.Config.Rpc.BF.Addr, manager)
 	if err != nil {
 		panic("create filter server error")
 	}

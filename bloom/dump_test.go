@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"testing"
 	"time"
@@ -83,8 +84,8 @@ func (b *TestBuffer) Close() error {
 func (t *TestPersister) NewWriter(filterName string) (Writer, error) {
 	return &t.buffer, nil
 }
-func (t *TestPersister) NewReader(filterName string) (*bufio.Reader, error) {
-	return bufio.NewReader(&t.buffer), nil
+func (t *TestPersister) NewReader(filterName string) (*bufio.Reader, io.Closer, error) {
+	return bufio.NewReader(&t.buffer), &t.buffer, nil
 }
 func (t *TestPersister) ListFilterNames() ([]string, error) {
 	return nil, nil

@@ -1,6 +1,7 @@
 package bloom
 
 import (
+	"bufio"
 	"compress/gzip"
 	"encoding/binary"
 	"encoding/gob"
@@ -27,7 +28,7 @@ var (
 	DUMP_ERROR          = fmt.Errorf("dump error")
 
 	Manager *FilterManager
-	UseGzip = false
+	UseGzip = true
 )
 
 type FilterOptions struct {
@@ -190,7 +191,8 @@ func (m *FilterManager) RecoverFilters() error {
 	}
 
 	for _, filterName := range filterNames {
-		reader, err := m.persister.NewReader(filterName)
+		reader, closer, err := m.persister.NewReader(filterName)
+		defer closer.Close()
 		if err != nil {
 			log4go.Warn("open filter reader for %s error:%v", filterName, err)
 			continue
@@ -213,10 +215,10 @@ func (m *FilterManager) Work() {
 
 OUTFOR:
 	for {
-		log4go.Info("manager ticker, start filters persit routine")
+		//		log4go.Info("manager ticker, start filters persit routine")
 
 		for _, filter := range m.Filters {
-			log4go.Trace("call period maintaince of %s", filter.Name())
+			//			log4go.Trace("call period maintaince of %s", filter.Name())
 			filter.PeriodMaintaince(m.persister)
 		}
 
@@ -266,6 +268,8 @@ func loadFilter(reader io.Reader) (Filter, error) {
 			log4go.Warn("decompress error: %v", err)
 			return nil, err
 		}
+
+		reader = bufio.NewReader(reader)
 	}
 
 	switch dumpHeader.FilterType {

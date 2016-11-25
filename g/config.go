@@ -35,12 +35,12 @@ func load_conf() bool {
 	value := os.Getenv("RUN_ENV")
 	switch value {
 	case "rd":
-		conf_file_path = "config.json.rd"
+		conf_file_path = "config.rd.json"
 	case "sandbox":
-		conf_file_path = "config.json.sandbox"
+		conf_file_path = "config.sandbox.json"
 	default:
 		value = "online"
-		conf_file_path = "config.json.online"
+		conf_file_path = "config.online.json"
 	}
 
 	conf_file_path = "./conf/" + conf_file_path

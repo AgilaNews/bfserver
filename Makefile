@@ -7,7 +7,7 @@ SRCS=server/main.go
 TOOL_SRCS=tools/main.go
 GOBUILD=go generate && go build -v && go test -v
 DEPENDS=$(wildcard *.go g/*.go bloom/*.go)
-PBOBJS=$(patsubst %.proto,%.pb.go,$(wildcard iface/*.proto))
+PBOBJS=$(patsubst %.proto,%.pb.go,$(wildcard bloomiface/*.proto))
 OUTPUT=${MYPATH}/output
 CONFDIR=${MYPATH}/conf
 BINDIR=${MYPATH}/bin
@@ -39,4 +39,4 @@ ${BIN}: ${PBOBJS} ${SRCS} ${DEPENDS}
 	go build -o ${BIN} ${SRCS}
 
 %.pb.go: %.proto
-	${PROTOC} --go_out=plugins=grpc:iface --php_out=/home/work/banews-server/library/pb/ $^  -I iface/
+	${PROTOC} --go_out=plugins=grpc:bloomiface --php_out=/home/work/banews-server/library/pb/ $^  -I bloomiface/

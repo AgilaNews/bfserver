@@ -1,7 +1,6 @@
 package bloom
 
 import (
-	"fmt"
 	"testing"
 )
 
@@ -17,7 +16,6 @@ func TestBatch(t *testing.T) {
 	BatchAdd(filter, keys, true)
 	keys = append(keys, "", "q")
 	ret := BatchTest(filter, keys)
-	fmt.Println(keys, ret)
 	if len(ret) != len(keys) {
 		t.Errorf("return length error")
 	} else {

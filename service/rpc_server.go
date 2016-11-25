@@ -5,27 +5,25 @@ import (
 	"net"
 
 	"github.com/AgilaNews/bfserver/bloom"
-	"github.com/AgilaNews/bfserver/g"
-	pb "github.com/AgilaNews/bfserver/iface"
+	pb "github.com/AgilaNews/bfserver/bloomiface"
 	"github.com/alecthomas/log4go"
 	"google.golang.org/grpc"
 )
 
 type BloomFilterServer struct {
-	listener  net.Listener
+	Listener  net.Listener
 	rpcServer *grpc.Server
 }
 
-func NewBloomFilterServer(manager *bloom.FilterManager) (*BloomFilterServer, error) {
+func NewBloomFilterServer(addr string, manager *bloom.FilterManager) (*BloomFilterServer, error) {
 	var err error
 
 	c := &BloomFilterServer{}
-
-	if c.listener, err = net.Listen("tcp", g.Config.Rpc.BF.Addr); err != nil {
-		return nil, fmt.Errorf("bind rpc %s server error", g.Config.Rpc.BF.Addr)
+	if c.Listener, err = net.Listen("tcp", addr); err != nil {
+		return nil, fmt.Errorf("bind rpc %s server error: %v", addr, err)
 	}
 
-	log4go.Info("listened on rpc server :%s success", g.Config.Rpc.BF.Addr)
+	log4go.Info("listened on rpc server :%s success", addr)
 
 	c.rpcServer = grpc.NewServer()
 
@@ -37,7 +35,7 @@ func NewBloomFilterServer(manager *bloom.FilterManager) (*BloomFilterServer, err
 }
 
 func (c *BloomFilterServer) Work() {
-	c.rpcServer.Serve(c.listener)
+	c.rpcServer.Serve(c.Listener)
 }
 
 func (c *BloomFilterServer) Stop() {

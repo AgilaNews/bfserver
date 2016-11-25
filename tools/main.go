@@ -3,7 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
-	pb "github.com/AgilaNews/bfserver/iface"
+	pb "github.com/AgilaNews/bfserver/bloomiface"
 	jsonpb "github.com/golang/protobuf/jsonpb"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"

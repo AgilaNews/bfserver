@@ -1,10 +1,9 @@
 package bloom
 
 import (
-	"math/rand"
-
 	"bufio"
 	"os"
+	"strconv"
 	"testing"
 	"time"
 )
@@ -95,42 +94,39 @@ func TestRotatedFilterDumpLoad(t *testing.T) {
 
 func BenchmarkRotatedBloomAdd(b *testing.B) {
 	b.StopTimer()
-	words := GetDictionarys()
 	filter, err := NewRotatedBloomFilter(FilterOptions{Name: "test", ErrorRate: 0.05, N: 100000, R: 7})
 	if err != nil {
 		b.Errorf("create rotated filter error: %v", err)
 		return
 	}
+	data := make([][]byte, b.N)
+	for i := 0; i < b.N; i++ {
+		data[i] = []byte(strconv.Itoa(i))
+	}
 
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
-		word := words[int(rand.Int31())%len(words)]
-
-		filter.Add(word)
+		filter.Add(data[i])
 	}
 }
 
 func BenchmarkRotatedBloomTest(b *testing.B) {
 	b.StopTimer()
-	words := GetDictionarys()
 	filter, err := NewRotatedBloomFilter(FilterOptions{Name: "test", ErrorRate: 0.05, N: 100000, R: 7})
 	if err != nil {
 		b.Errorf("create rotated filter error: %v", err)
 		return
 	}
 
+	data := make([][]byte, b.N)
 	for i := 0; i < b.N; i++ {
-		word := words[int(rand.Int31())%len(words)]
-
-		filter.Add(word)
+		data[i] = []byte(strconv.Itoa(i))
 	}
 
 	b.StartTimer()
 
 	for i := 0; i < b.N; i++ {
-		word := words[int(rand.Int31())%len(words)]
-
-		filter.Test(word)
+		filter.Test(data[i])
 	}
 }
 

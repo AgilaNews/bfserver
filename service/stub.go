@@ -7,7 +7,7 @@ import (
 	"golang.org/x/net/context"
 
 	"github.com/AgilaNews/bfserver/bloom"
-	pb "github.com/AgilaNews/bfserver/iface"
+	pb "github.com/AgilaNews/bfserver/bloomiface"
 	"github.com/alecthomas/log4go"
 )
 
@@ -23,6 +23,7 @@ func NewBloomFilterService(manager *bloom.FilterManager) (*BloomFilterService, e
 
 func (b *BloomFilterService) Add(ctx context.Context, req *pb.AddRequest) (*pb.EmptyMessage, error) {
 	log4go.Debug("Add %v", req)
+	t := StartTimer()
 
 	resp := &pb.EmptyMessage{}
 
@@ -39,11 +40,13 @@ func (b *BloomFilterService) Add(ctx context.Context, req *pb.AddRequest) (*pb.E
 	}
 
 	bloom.BatchAdd(filter, req.Keys, !req.Async)
+	log4go.Debug("duration:%v", t.Stop())
 	return resp, nil
 }
 
 func (b *BloomFilterService) Test(ctx context.Context, req *pb.TestRequest) (*pb.TestResponse, error) {
 	resp := &pb.TestResponse{}
+	t := StartTimer()
 
 	if len(req.Name) == 0 {
 		return nil, fmt.Errorf("empty request name")
@@ -59,6 +62,7 @@ func (b *BloomFilterService) Test(ctx context.Context, req *pb.TestRequest) (*pb
 	}
 
 	resp.Exists = bloom.BatchTest(filter, req.Keys)
+	log4go.Debug("duration:%v", t.Stop())
 	return resp, nil
 }
 

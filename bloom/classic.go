@@ -11,11 +11,6 @@ import (
 	"github.com/alecthomas/log4go"
 )
 
-const (
-	FNV_HASH64 = "fnv.sum64"
-	FNV_HASH32 = "fnv.sum32"
-)
-
 type ClassicBloomFilter struct {
 	name  string
 	m     uint // filter size
@@ -123,10 +118,6 @@ func (b *ClassicBloomFilter) Reset() {
 	b.buckets.Reset()
 }
 
-func (b *ClassicBloomFilter) SetHash(h hash.Hash64) {
-	b.hash = h
-}
-
 func (b *ClassicBloomFilter) Load(stream io.Reader) error {
 	dec := gob.NewDecoder(stream)
 	header := ClassicBloomFilterDumpHeader{}
@@ -141,6 +132,7 @@ func (b *ClassicBloomFilter) Load(stream io.Reader) error {
 	b.m = header.M
 	b.count = header.Count
 	b.buckets = NewBuckets(b.m, 1)
+	b.hash = fnv.New64()
 	log4go.Info("loaded filter header with name:%s k:%d m:%d count:%d", b.name, b.k, b.m, b.count)
 
 	return b.buckets.Load(stream)

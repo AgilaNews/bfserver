@@ -9,7 +9,7 @@ import (
 )
 
 type Buckets struct {
-	sync.RWMutex
+	sync.RWMutex //TODO change this mutex to bucket
 
 	data       []byte
 	bucketSize uint8

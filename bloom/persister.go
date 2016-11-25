@@ -3,6 +3,7 @@ package bloom
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -15,7 +16,7 @@ import (
 type FilterPersister interface {
 	ListFilterNames() ([]string, error)
 	NewWriter(filterName string) (Writer, error)
-	NewReader(filterName string) (*bufio.Reader, error)
+	NewReader(filterName string) (*bufio.Reader, io.Closer, error)
 }
 
 type Writer interface {
@@ -97,15 +98,15 @@ func (p *LocalFileFilterPersister) NewWriter(name string) (Writer, error) {
 	}
 }
 
-func (p *LocalFileFilterPersister) NewReader(name string) (*bufio.Reader, error) {
+func (p *LocalFileFilterPersister) NewReader(name string) (*bufio.Reader, io.Closer, error) {
 	fullpath := filepath.Join(p.basePath, name)
 
 	if f, err := os.OpenFile(fullpath, os.O_RDONLY, os.ModePerm); err != nil {
 		log4go.Warn("get reader from %s error :%v", fullpath, err)
-		return nil, err
+		return nil, nil, err
 	} else {
 		log4go.Trace("got reader of %s from %s", name, fullpath)
 
-		return bufio.NewReader(f), nil
+		return bufio.NewReader(f), f, nil
 	}
 }
