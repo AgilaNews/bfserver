@@ -1,0 +1,16 @@
+{
+    "log": {
+        "path": "/home/work/logs/bfserver.log",
+        "level": "DEBUG",
+        "console": true
+    },
+    "persist": {
+        "path": "/data/bfserver/persist/",
+        "use_gzip": true
+    },
+    "rpc": {
+        "bf": {
+              "addr": ":6066"
+        }
+    }
+}

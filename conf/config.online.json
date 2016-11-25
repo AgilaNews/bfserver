@@ -1,0 +1,16 @@
+{
+    "log": {
+        "path": "/data/logs/comment_server/comment_server.log",
+        "level": "DEBUG",
+        "console": true
+    },
+    "rpc": {
+        "bf": {
+            "addr": ":6066"
+        }
+    },
+    "persist": {
+        "path": "/data/bfserver/persist/",
+        "use_gzip": true
+    }
+}
