@@ -24,6 +24,10 @@ type Configuration struct {
 			Addr string `json:"addr"`
 		} `json:"bf"`
 	} `json:"rpc"`
+	Gprof struct {
+		Enabled bool   `json:"enabled"`
+		Addr    string `json:"addr"`
+	} `json:"gprof"`
 }
 
 func load_conf() bool {

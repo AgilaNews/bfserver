@@ -39,4 +39,4 @@ ${BIN}: ${PBOBJS} ${SRCS} ${DEPENDS}
 	go build -o ${BIN} ${SRCS}
 
 %.pb.go: %.proto
-	${PROTOC} --go_out=plugins=grpc:bloomiface --php_out=/home/work/banews-server/library/pb/ $^  -I bloomiface/
+	${PROTOC} --go_out=plugins=grpc:bloomiface --php_out=/home/work/banews-server/library/pb/ $^  -I bloomiface/ -I=${GOPATH}/src

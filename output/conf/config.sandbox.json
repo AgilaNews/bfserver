@@ -12,5 +12,8 @@
     "persist": {
         "path": "/data/bfserver/persist/",
         "use_gzip": true
+    },
+    "general": {
+        "enable_gpref": true
     }
 }

@@ -13,6 +13,8 @@ import (
 	g "github.com/AgilaNews/bfserver/g"
 	"github.com/AgilaNews/bfserver/service"
 	"github.com/alecthomas/log4go"
+	"net/http"
+	_ "net/http/pprof"
 )
 
 func main() {
@@ -64,6 +66,12 @@ func main() {
 		done <- true
 	}()
 
+	if g.Config.Gprof.Enabled {
+		go func() {
+			log4go.Info("gprof listen on %s", g.Config.Gprof.Addr)
+			http.ListenAndServe(g.Config.Gprof.Addr, nil)
+		}()
+	}
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGTERM)
 OUTFOR:

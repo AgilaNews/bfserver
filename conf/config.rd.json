@@ -12,5 +12,9 @@
         "bf": {
               "addr": ":6066"
         }
+    },
+    "gprof": {
+        "enabled": true,
+        "addr": ":6065"
     }
 }
