@@ -21,6 +21,7 @@ start(){
 }
 
 stop(){
+    $SUPERVISORCTL -c $SUPERVISORD_CONF stop bfserver
     $SUPERVISORCTL -c $SUPERVISORD_CONF shutdown
 }
 
