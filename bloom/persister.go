@@ -46,6 +46,7 @@ func (fw *fileWriter) Close() error {
 	fw.f.Close()
 
 	linkName := filepath.Join(fw.basePath, fw.baseName)
+	os.Remove(linkName)
 	return os.Symlink(fw.fullpath, linkName)
 }
 
