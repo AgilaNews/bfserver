@@ -7,7 +7,7 @@
     "persist": {
         "path": "/data/bfserver/persist/",
         "use_gzip": true,
-        "force_dump_seconds": 60
+        "force_dump_seconds": 10
     },
     "rpc": {
         "bf": {

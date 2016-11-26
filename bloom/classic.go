@@ -148,7 +148,7 @@ func (b *ClassicBloomFilter) Load(stream io.Reader) error {
 	b.count = header.Count
 	b.buckets = NewBuckets(b.m, 1)
 	b.hash = fnv.New64()
-	log4go.Info("loaded filter header with name:%s k:%d m:%d count:%d", b.name, b.k, b.m, b.count)
+	log4go.Info("loaded classic filter name:%s k:%d m:%d count:%d", b.name, b.k, b.m, b.count)
 
 	return b.buckets.Load(stream)
 }

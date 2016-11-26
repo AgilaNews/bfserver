@@ -44,10 +44,12 @@ type FilterOptions struct {
 type FilterManager struct {
 	sync.RWMutex
 
-	stop      chan bool
-	persister FilterPersister
-	Filters   map[string]Filter
-	TotalMem  uint64
+	stop        chan bool
+	persister   FilterPersister
+	persistChan chan bool
+
+	Filters  map[string]Filter
+	TotalMem uint64
 
 	forceDumpPeriod time.Duration
 	lastForce       time.Time
@@ -149,6 +151,7 @@ func NewFilterManager(persister FilterPersister, forceDumpSeconds int) (*FilterM
 		persister:       persister,
 		stop:            make(chan bool),
 		forceDumpPeriod: time.Duration(forceDumpSeconds) * time.Second,
+		persistChan:     make(chan bool, 1),
 	}, nil
 }
 
@@ -185,8 +188,6 @@ func (m *FilterManager) AddNewBloomFilter(t string, options FilterOptions) (Filt
 
 	m.Filters[options.Name] = filter
 
-	log4go.Info("period maintaince %s", options.Name)
-	filter.PeriodMaintaince(m.persister, true)
 	return filter, nil
 }
 
@@ -221,16 +222,18 @@ func (m *FilterManager) RecoverFilters() error {
 
 func (m *FilterManager) Work() {
 	ticker := time.NewTicker(m.forceDumpPeriod)
+	should_stop := false
 
-OUTFOR:
 	for {
 		force := false
 
-		if time.Now().Sub(m.lastForce) > m.forceDumpPeriod {
+		// only force dump or stop signal received, we will force all filters to dump
+		if time.Now().Sub(m.lastForce) > m.forceDumpPeriod || should_stop {
 			force = true
 		}
 
 		done := make(chan bool, len(m.Filters))
+
 		for _, filter := range m.Filters {
 			go func() {
 				filter.PeriodMaintaince(m.persister, force)
@@ -243,13 +246,14 @@ OUTFOR:
 			<-done
 		}
 
+		if should_stop {
+			break
+		}
+
 		select {
 		case <-m.stop:
 			log4go.Info("got stop signal, exits, dump again")
-			for _, filter := range m.Filters {
-				filter.PeriodMaintaince(m.persister, true)
-			}
-			break OUTFOR
+			should_stop = true
 		case <-ticker.C:
 		}
 	}

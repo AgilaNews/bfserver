@@ -131,7 +131,8 @@ func (b *RotatedBloomFilter) Test(key []byte) bool {
 }
 
 func (b *RotatedBloomFilter) PeriodMaintaince(persister FilterPersister, force bool) error {
-	if time.Now().Sub(b.lastRotated) >= b.rotateInterval || force {
+	need_rotated := time.Now().Sub(b.lastRotated) >= b.rotateInterval
+	if need_rotated || force {
 		writer, err := persister.NewWriter(b.name)
 		defer writer.Close()
 
@@ -144,11 +145,14 @@ func (b *RotatedBloomFilter) PeriodMaintaince(persister FilterPersister, force b
 			log4go.Warn("dumpfilter error:%v", err)
 			return err
 		} else {
-			if !force {
+			if need_rotated {
 				b.Lock()
-				defer b.Unlock()
 				b.dropOneRep()
 				b.lastRotated = time.Now()
+
+				log4go.Info("Filter %s rotated to %d, next rotated time to %v", b.name, b.current, b.lastRotated.Add(b.rotateInterval))
+				b.Unlock()
+
 			}
 		}
 	}
@@ -206,6 +210,8 @@ func (b *RotatedBloomFilter) Load(r io.Reader) error {
 		}
 	}
 
+	log4go.Info("load rotated filter, name:%s current:%d r:%d last_rotated:%+v rotated_interval:%+v next_interval_time:%+v",
+		b.name, b.current, b.r, b.lastRotated, b.rotateInterval, b.lastRotated.Add(b.rotateInterval))
 	return nil
 }
 

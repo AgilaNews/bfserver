@@ -118,7 +118,7 @@ func (b *BloomFilterService) Create(ctx context.Context, req *pb.NewBloomFilterR
 		log4go.Warn("create filter of %v error: %v", req, err)
 		return nil, fmt.Errorf("create filter error: %v", err)
 	} else {
-		log4go.Info("add filter %v success", req)
+		log4go.Info("add filter %v success ", options.Name)
 		return resp, nil
 	}
 }
