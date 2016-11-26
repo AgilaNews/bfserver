@@ -46,7 +46,12 @@ func (fw *fileWriter) Close() error {
 	fw.f.Close()
 
 	linkName := filepath.Join(fw.basePath, fw.baseName)
-	os.Remove(linkName)
+
+	if origin, err := os.Readlink(linkName); err != nil {
+		os.Remove(linkName)
+		os.Remove(origin)
+	}
+
 	return os.Symlink(fw.fullpath, linkName)
 }
 
