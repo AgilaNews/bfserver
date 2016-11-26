@@ -41,7 +41,7 @@ func (b *BloomFilterService) Add(ctx context.Context, req *pb.AddRequest) (*pb.E
 	bloom.BatchAdd(filter, req.Keys, !req.Async)
 
 	log4go.Trace("keys: %+v", req.Keys)
-	log4go.Debug("%s add %d keys,  duration:%v", req.Name, len(req.Keys), t.Stop())
+	log4go.Info("%s add %d keys,  duration:%v", req.Name, len(req.Keys), t.Stop())
 	return resp, nil
 }
 
@@ -65,7 +65,7 @@ func (b *BloomFilterService) Test(ctx context.Context, req *pb.TestRequest) (*pb
 	exists := 0
 	resp.Exists, exists = bloom.BatchTest(filter, req.Keys)
 	log4go.Trace("keys: %+v", req.Keys)
-	log4go.Debug("%s, test %d, left:%d duration:%v", req.Name, len(req.Keys), len(req.Keys)-exists, t.Stop())
+	log4go.Info("%s, test %d, left:%d duration:%v", req.Name, len(req.Keys), len(req.Keys)-exists, t.Stop())
 	return resp, nil
 }
 
