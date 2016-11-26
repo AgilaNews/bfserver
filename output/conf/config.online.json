@@ -14,5 +14,9 @@
         "path": "/data/bfserver/persist/",
         "use_gzip": true,
         "force_dump_seconds": 3600
+    },
+    "gprof": {
+        "enabled": true,
+        "addr": ":6065"
     }
 }

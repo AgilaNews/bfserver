@@ -1,8 +1,9 @@
 {
     "log": {
-        "path": "/data/logs/comment_server/comment_server.log",
+        "path": "/data/logs/bfserver/bfserver.log",
         "level": "DEBUG",
-        "console": true
+        "console": false,
+        "max_keep_days": 1
     },
     "rpc": {
         "bf": {
@@ -14,7 +15,8 @@
         "use_gzip": true,
         "force_dump_seconds": 600
     },
-    "general": {
-        "enable_gpref": true
+    "gprof": {
+        "enabled": true,
+        "addr": ":6065"
     }
 }
