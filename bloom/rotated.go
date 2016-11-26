@@ -107,6 +107,7 @@ func (b *RotatedBloomFilter) Reset() {
 func (b *RotatedBloomFilter) Add(key []byte) Filter {
 	b.Lock()
 	defer b.Unlock()
+
 	ch := make(chan bool, b.r)
 
 	for i := 0; i < int(b.r); i++ {

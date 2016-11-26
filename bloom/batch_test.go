@@ -1,11 +1,17 @@
 package bloom
 
 import (
+	"fmt"
+	"github.com/alecthomas/log4go"
 	"testing"
+	"time"
 )
 
+var _ = fmt.Println
+var _ = time.Sleep
+
 func TestBatch(t *testing.T) {
-	keys := []string{"a", "b", "c"}
+	keys := []string{"a", "b", "wreathed"}
 
 	filter, err := NewRotatedBloomFilter(FilterOptions{Name: "test", ErrorRate: 0.05, N: 100000, R: 7})
 	if err != nil {
@@ -22,6 +28,7 @@ func TestBatch(t *testing.T) {
 		if exists != 3 {
 			t.Errorf("batch error")
 		}
+
 		for i := 0; i < 3; i++ {
 			if ret[i] == false {
 				t.Errorf("false positive")
@@ -55,4 +62,31 @@ func BenchmarkBatch(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		BatchAdd(filter, keys, true)
 	}
+}
+
+func TestBatchTest(t *testing.T) {
+	log4go.Close()
+
+	d := GetDictionarys()
+	keys := make([]string, len(d))
+
+	for i, v := range d {
+		keys[i] = string(v)
+	}
+
+	//	for {
+	filter, err := NewClassicBloomFilter(FilterOptions{Name: "testa", ErrorRate: 0.05, N: 100000, R: 7})
+	if err != nil {
+		t.Errorf("create classic filter error: %v", err)
+		return
+	}
+
+	BatchAdd(filter, keys, true)
+
+	ret, j := BatchTest(filter, keys)
+	if j != len(keys) {
+		t.Errorf("test for filter error: %d, len keys:%d ret:%d", j, len(keys), len(ret))
+		return
+	}
+	///	}
 }

@@ -98,45 +98,68 @@ func hashKernel(data []byte, hash hash.Hash64) (uint32, uint32) {
 }
 
 func BatchAdd(f Filter, keys []string, wait bool) {
-	if wait {
-		ch := make(chan bool, len(keys))
+	/*
+		if wait {
+			ch := make(chan bool, len(keys))
 
-		for _, key := range keys {
-			go func(k string) {
-				log4go.Trace("inner add %s", k)
-				f.Add([]byte(k))
+			for i := 0; i < len(keys); i++ {
+				go func(b []byte) {
+					f.Add(b)
 
-				ch <- true
-			}(key)
-		}
+					ch <- true
+				}([]byte(keys[i]))
+			}
 
-		for i := 0; i < len(keys); i++ {
-			<-ch
-		}
-	} else {
-		for _, key := range keys {
-			go f.Add([]byte(key))
-		}
+			for i := 0; i < len(keys); i++ {
+				<-ch
+			}
+		} else {
+			for i := 0; i < len(keys); i++ {
+				go func(idx int) {
+					f.Add([]byte(keys[idx]))
+				}(i)
+			}
+		}*/
+
+	for i := 0; i < len(keys); i++ {
+		f.Add([]byte(keys[i]))
 	}
 }
 
-func BatchTest(f Filter, keys []string) ([]bool, int) {
-	chs := make([]chan bool, len(keys))
-	for i := 0; i < len(keys); i++ {
-		chs[i] = make(chan bool)
-	}
+type test_result struct {
+	index  int
+	exists bool
+}
 
+func BatchTest(f Filter, keys []string) ([]bool, int) {
 	ret := make([]bool, len(keys))
 
-	for i, str := range keys {
-		go func(ch chan bool, key []byte) {
-			ch <- f.Test(key)
-		}(chs[i], []byte(str))
-	}
+	/*
+		chs := make(chan test_result, len(keys))
+
+		for i := 0; i < len(keys); i++ {
+			go func(idx int, key []byte) {
+				fmt.Println(idx, key)
+				chs <- test_result{
+					index:  idx,
+					exists: f.Test(key),
+				}
+			}(i, []byte(keys[i]))
+		}
+
+		trues := 0
+
+		for i := 0; i < len(keys); i++ {
+			result := <-chs
+			ret[result.index] = result.exists
+			if ret[result.index] {
+				trues += 1
+			}
+		}*/
 
 	trues := 0
-	for i, ch := range chs {
-		ret[i] = <-ch
+	for i := 0; i < len(keys); i++ {
+		ret[i] = f.Test([]byte(keys[i]))
 		if ret[i] {
 			trues += 1
 		}
