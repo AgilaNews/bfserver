@@ -216,8 +216,8 @@ func (b *RotatedBloomFilter) Load(r io.Reader) error {
 }
 
 func (b *RotatedBloomFilter) Dump(w io.Writer) error {
-	b.Lock()
-	defer b.Unlock()
+	//	b.Lock()
+	//	defer b.Unlock()
 	enc := gob.NewEncoder(w)
 
 	header := RotatedBloomFilterHeader{
