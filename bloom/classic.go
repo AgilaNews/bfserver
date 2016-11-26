@@ -3,22 +3,22 @@ package bloom
 import (
 	"encoding/gob"
 	"fmt"
-	"hash"
-	"hash/fnv"
 	"io"
 	"math"
+	"sync"
 
 	"github.com/alecthomas/log4go"
 )
 
 type ClassicBloomFilter struct {
+	sync.RWMutex
+
 	name  string
 	m     uint // filter size
 	k     uint // number of hash functions
 	count uint // number of items added
 
-	buckets *Buckets    // filter data
-	hash    hash.Hash64 // hash function (kernel for all k functions)
+	buckets *Buckets // filter data
 }
 
 type ClassicBloomFilterDumpHeader struct {
@@ -38,7 +38,6 @@ func NewClassicBloomFilter(options FilterOptions) (Filter, error) {
 	return &ClassicBloomFilter{
 		name:    options.Name,
 		buckets: NewBuckets(m, 1),
-		hash:    fnv.New64(),
 		m:       m,
 		k:       OptimalK(options.ErrorRate),
 	}, nil
@@ -91,7 +90,10 @@ func (b *ClassicBloomFilter) FillRatio() float64 {
 }
 
 func (b *ClassicBloomFilter) Test(data []byte) bool {
-	lower, upper := hashKernel(data, b.hash)
+	b.RLock()
+	defer b.RUnlock()
+
+	lower, upper := hashKernel(data)
 
 	for i := uint(0); i < b.k; i++ {
 		if b.buckets.Get((uint(lower)+uint(upper)*i)%b.m) == 0 {
@@ -103,7 +105,10 @@ func (b *ClassicBloomFilter) Test(data []byte) bool {
 }
 
 func (b *ClassicBloomFilter) Add(data []byte) Filter {
-	lower, upper := hashKernel(data, b.hash)
+	b.Lock()
+	defer b.Unlock()
+
+	lower, upper := hashKernel(data)
 
 	for i := uint(0); i < b.k; i++ {
 		b.buckets.Set((uint(lower)+uint(upper)*i)%b.m, 1)
@@ -113,23 +118,9 @@ func (b *ClassicBloomFilter) Add(data []byte) Filter {
 	return b
 }
 
-func (b *ClassicBloomFilter) TestAndAdd(data []byte) bool {
-	lower, upper := hashKernel(data, b.hash)
-	member := true
-
-	for i := uint(0); i < b.k; i++ {
-		idx := (uint(lower) + uint(upper)*i) % b.m
-		if b.buckets.Get(idx) == 0 {
-			member = false
-		}
-		b.buckets.Set(idx, 1)
-	}
-
-	b.count++
-	return member
-}
-
 func (b *ClassicBloomFilter) Reset() {
+	b.Lock()
+	defer b.Unlock()
 	b.buckets.Reset()
 }
 
@@ -147,7 +138,6 @@ func (b *ClassicBloomFilter) Load(stream io.Reader) error {
 	b.m = header.M
 	b.count = header.Count
 	b.buckets = NewBuckets(b.m, 1)
-	b.hash = fnv.New64()
 	log4go.Info("loaded classic filter name:%s k:%d m:%d count:%d", b.name, b.k, b.m, b.count)
 
 	return b.buckets.Load(stream)

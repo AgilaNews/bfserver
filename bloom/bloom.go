@@ -6,7 +6,7 @@ import (
 	"encoding/binary"
 	"encoding/gob"
 	"fmt"
-	"hash"
+	"hash/fnv"
 	"io"
 	"math"
 	"sync"
@@ -90,39 +90,35 @@ func OptimalK(fpRate float64) uint {
 	return uint(math.Ceil(math.Log2(1 / fpRate)))
 }
 
-func hashKernel(data []byte, hash hash.Hash64) (uint32, uint32) {
-	hash.Write(data)
-	sum := hash.Sum(nil)
-	hash.Reset()
+func hashKernel(data []byte) (uint32, uint32) {
+	h := fnv.New64()
+	h.Write(data)
+	sum := h.Sum(nil)
+
 	return binary.BigEndian.Uint32(sum[4:8]), binary.BigEndian.Uint32(sum[0:4])
 }
 
 func BatchAdd(f Filter, keys []string, wait bool) {
-	/*
-		if wait {
-			ch := make(chan bool, len(keys))
 
-			for i := 0; i < len(keys); i++ {
-				go func(b []byte) {
-					f.Add(b)
+	if wait {
+		ch := make(chan bool, len(keys))
+		for i, key := range keys {
+			go func(i int, b []byte) {
+				f.Add(b)
 
-					ch <- true
-				}([]byte(keys[i]))
-			}
+				ch <- true
+			}(i, []byte(key))
+		}
 
-			for i := 0; i < len(keys); i++ {
-				<-ch
-			}
-		} else {
-			for i := 0; i < len(keys); i++ {
-				go func(idx int) {
-					f.Add([]byte(keys[idx]))
-				}(i)
-			}
-		}*/
-
-	for i := 0; i < len(keys); i++ {
-		f.Add([]byte(keys[i]))
+		for i := 0; i < len(keys); i++ {
+			<-ch
+		}
+	} else {
+		for i := 0; i < len(keys); i++ {
+			go func(idx int) {
+				f.Add([]byte(keys[idx]))
+			}(i)
+		}
 	}
 }
 
@@ -133,34 +129,23 @@ type test_result struct {
 
 func BatchTest(f Filter, keys []string) ([]bool, int) {
 	ret := make([]bool, len(keys))
+	chs := make(chan test_result, len(keys))
 
-	/*
-		chs := make(chan test_result, len(keys))
-
-		for i := 0; i < len(keys); i++ {
-			go func(idx int, key []byte) {
-				fmt.Println(idx, key)
-				chs <- test_result{
-					index:  idx,
-					exists: f.Test(key),
-				}
-			}(i, []byte(keys[i]))
-		}
-
-		trues := 0
-
-		for i := 0; i < len(keys); i++ {
-			result := <-chs
-			ret[result.index] = result.exists
-			if ret[result.index] {
-				trues += 1
+	for i := 0; i < len(keys); i++ {
+		go func(idx int, key []byte) {
+			chs <- test_result{
+				index:  idx,
+				exists: f.Test(key),
 			}
-		}*/
+		}(i, []byte(keys[i]))
+	}
 
 	trues := 0
+
 	for i := 0; i < len(keys); i++ {
-		ret[i] = f.Test([]byte(keys[i]))
-		if ret[i] {
+		result := <-chs
+		ret[result.index] = result.exists
+		if ret[result.index] {
 			trues += 1
 		}
 	}

@@ -74,7 +74,6 @@ func TestBatchTest(t *testing.T) {
 		keys[i] = string(v)
 	}
 
-	//	for {
 	filter, err := NewClassicBloomFilter(FilterOptions{Name: "testa", ErrorRate: 0.05, N: 100000, R: 7})
 	if err != nil {
 		t.Errorf("create classic filter error: %v", err)
@@ -88,5 +87,4 @@ func TestBatchTest(t *testing.T) {
 		t.Errorf("test for filter error: %d, len keys:%d ret:%d", j, len(keys), len(ret))
 		return
 	}
-	///	}
 }

@@ -2,15 +2,11 @@ package bloom
 
 import (
 	"encoding/gob"
-	"io"
-	"sync"
-
 	"github.com/alecthomas/log4go"
+	"io"
 )
 
 type Buckets struct {
-	sync.RWMutex //TODO change this mutex to bucket
-
 	data       []byte
 	bucketSize uint8
 	max        uint8
@@ -69,17 +65,11 @@ func (b *Buckets) Get(bucket uint) uint32 {
 }
 
 func (b *Buckets) Reset() *Buckets {
-	b.Lock()
-	defer b.Unlock()
-
 	b.data = make([]byte, (b.count*uint(b.bucketSize)+7)/8)
 	return b
 }
 
 func (b *Buckets) getBits(offset, length uint) uint32 {
-	b.RLock()
-	defer b.RUnlock()
-
 	return b.i_get_bits(offset, length)
 }
 
@@ -95,9 +85,6 @@ func (b *Buckets) i_get_bits(offset, length uint) uint32 {
 }
 
 func (b *Buckets) setBits(offset, length, bits uint32) {
-	b.Lock()
-	defer b.Unlock()
-
 	b.i_set_bits(offset, length, bits)
 }
 
@@ -116,9 +103,6 @@ func (b *Buckets) i_set_bits(offset, length, bits uint32) {
 }
 
 func (b *Buckets) Dump(stream io.Writer) error {
-	b.RLock()
-	defer b.RUnlock()
-
 	enc := gob.NewEncoder(stream)
 	d := BucketsDump{
 		Max:   b.max,
@@ -131,9 +115,6 @@ func (b *Buckets) Dump(stream io.Writer) error {
 }
 
 func (b *Buckets) Load(stream io.Reader) error {
-	b.Lock()
-	defer b.Unlock()
-
 	d := &BucketsDump{}
 	dec := gob.NewDecoder(stream)
 	if err := dec.Decode(d); err != nil {
