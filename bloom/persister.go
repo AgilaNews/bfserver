@@ -47,12 +47,15 @@ func (fw *fileWriter) Close() error {
 
 	linkName := filepath.Join(fw.basePath, fw.baseName)
 
-	if origin, err := os.Readlink(linkName); err == nil {
-		log4go.Info("remove link %s => %s", linkName, origin)
-		os.Remove(linkName)
-		os.Remove(origin)
-	}
+	/*
+		if origin, err := os.Readlink(linkName); err == nil {
+			log4go.Info("remove link %s => %s", linkName, origin)
 
+			os.Remove(origin)
+		}
+	*/
+
+	os.Remove(linkName)
 	log4go.Info("create link %s => %s", linkName, fw.fullpath)
 	return os.Symlink(fw.fullpath, linkName)
 }
