@@ -101,6 +101,7 @@ func BatchAdd(f Filter, keys []string, wait bool) {
 
 		for _, key := range keys {
 			go func(k string) {
+				log4go.Trace("inner add %s", k)
 				f.Add([]byte(k))
 
 				ch <- true
@@ -117,7 +118,7 @@ func BatchAdd(f Filter, keys []string, wait bool) {
 	}
 }
 
-func BatchTest(f Filter, keys []string) []bool {
+func BatchTest(f Filter, keys []string) ([]bool, int) {
 	chs := make([]chan bool, len(keys))
 	for i := 0; i < len(keys); i++ {
 		chs[i] = make(chan bool)
@@ -131,11 +132,15 @@ func BatchTest(f Filter, keys []string) []bool {
 		}(chs[i], []byte(str))
 	}
 
+	trues := 0
 	for i, ch := range chs {
 		ret[i] = <-ch
+		if ret[i] {
+			trues += 1
+		}
 	}
 
-	return ret
+	return ret, trues
 }
 
 func NewFilterManager(persister FilterPersister, forceDumpSeconds int) (*FilterManager, error) {

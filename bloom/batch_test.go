@@ -15,10 +15,13 @@ func TestBatch(t *testing.T) {
 
 	BatchAdd(filter, keys, true)
 	keys = append(keys, "", "q")
-	ret := BatchTest(filter, keys)
+	ret, exists := BatchTest(filter, keys)
 	if len(ret) != len(keys) {
 		t.Errorf("return length error")
 	} else {
+		if exists != 3 {
+			t.Errorf("batch error")
+		}
 		for i := 0; i < 3; i++ {
 			if ret[i] == false {
 				t.Errorf("false positive")

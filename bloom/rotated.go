@@ -144,10 +144,12 @@ func (b *RotatedBloomFilter) PeriodMaintaince(persister FilterPersister, force b
 			log4go.Warn("dumpfilter error:%v", err)
 			return err
 		} else {
-			b.Lock()
-			defer b.Unlock()
-			b.dropOneRep()
-			b.lastRotated = time.Now()
+			if !force {
+				b.Lock()
+				defer b.Unlock()
+				b.dropOneRep()
+				b.lastRotated = time.Now()
+			}
 		}
 	}
 
