@@ -147,11 +147,14 @@ func (b *RotatedBloomFilter) PeriodMaintaince(persister FilterPersister, force b
 			return err
 		} else {
 			if need_rotated {
+				last := b.lastRotated
 				b.Lock()
-				b.dropOneRep()
-				b.lastRotated = time.Now()
+				if b.lastRotated == last {
+					b.dropOneRep()
+					b.lastRotated = time.Now()
 
-				log4go.Info("Filter %s rotated to %d, next rotated time to %v", b.name, b.current, b.lastRotated.Add(b.rotateInterval))
+					log4go.Info("Filter %s rotated to %d, next rotated time to %v", b.name, b.current, b.lastRotated.Add(b.rotateInterval))
+				}
 				b.Unlock()
 
 			}

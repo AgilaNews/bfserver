@@ -46,7 +46,7 @@ func TestBatch(t *testing.T) {
 func BenchmarkBatch(b *testing.B) {
 	b.StopTimer()
 
-	d := GetDictionarys()
+	d := GetDictionarys()[:10]
 	keys := make([]string, len(d))
 	for i, v := range d {
 		keys[i] = string(v)
@@ -67,7 +67,7 @@ func BenchmarkBatch(b *testing.B) {
 func TestBatchTest(t *testing.T) {
 	log4go.Close()
 
-	d := GetDictionarys()
+	d := GetDictionarys()[:10]
 	keys := make([]string, len(d))
 
 	for i, v := range d {

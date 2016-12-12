@@ -24,7 +24,7 @@ type BenchmarkClient struct {
 }
 
 func getManagerFixture() *bloom.FilterManager {
-	m, _ := bloom.NewFilterManager(nil)
+	m, _ := bloom.NewFilterManager(nil, 6000)
 	m.AddNewBloomFilter(bloom.FILTER_CLASSIC, bloom.FilterOptions{
 		Name:      BF_NAME,
 		N:         10000,
@@ -88,7 +88,7 @@ func runTest(b *testing.B, requestsCount int, keys []string) int64 {
 
 func Benchmark5000LenKey100Client(b *testing.B) {
 	log4go.Close()
-	keylen := 5000
+	keylen := 500
 	keys := make([]string, keylen)
 	for i := 0; i < keylen; i++ {
 		keys = append(keys, strconv.Itoa(i))
