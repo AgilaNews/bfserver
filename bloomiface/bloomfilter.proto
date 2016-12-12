@@ -1,0 +1,62 @@
+syntax="proto3";
+
+//import "github.com/AgilaNews/goshare/iface/stat.proto";
+package bloomiface;
+
+service BloomFilterService {
+    rpc Add(AddRequest) returns(EmptyMessage) {};
+    rpc Test(TestRequest) returns(TestResponse) {};
+
+    //offline use
+    rpc Create(NewBloomFilterRequest) returns(EmptyMessage){};
+    rpc Info(EmptyMessage) returns(InfoResponse) {};
+}
+
+
+enum BloomFilterType {
+    CLASSIC = 0;
+    ROTATED = 1;
+}
+
+message AddRequest {
+    string Name = 1;
+    repeated string Keys = 2;
+    bool Async = 3;
+}
+
+message TestRequest {
+    string Name = 1;
+    repeated string Keys = 2;
+}
+
+message TestResponse {
+    repeated bool Exists = 1;
+}
+
+message InfoResponse {
+    int32 Capacity = 1;  //M
+    int32 ErrorRate = 2; //r
+    int32 HashFunc = 3; //k
+    int32 Keys = 4; //n
+    int32 Storage = 5; //total memory
+    float FillRate = 6;
+}
+
+message EmptyMessage {
+
+}
+
+message NewBloomFilterRequest {
+    enum FilterType {
+        CLASSIC = 0;
+        ROTATED = 1;
+    }
+
+    FilterType Type = 1;
+    string Name = 2;
+    uint32 N = 3; //keys count
+    double ErrorRate = 4; //estimate error rate
+
+    int32 R = 5; //if rotated filter
+    int32 Interval = 6; //if rotated filter
+}
