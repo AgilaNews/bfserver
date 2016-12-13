@@ -9,6 +9,7 @@ import (
 	"hash/fnv"
 	"io"
 	"math"
+	"os"
 	"sync"
 	"time"
 
@@ -160,6 +161,7 @@ func NewFilterManager(persister FilterPersister, forceDumpSeconds int) (*FilterM
 		stop:            make(chan bool),
 		forceDumpPeriod: time.Duration(forceDumpSeconds) * time.Second,
 		persistChan:     make(chan bool, 1),
+		lastForce:       time.Now(),
 	}, nil
 }
 
@@ -243,11 +245,11 @@ func (m *FilterManager) Work() {
 		done := make(chan bool, len(m.Filters))
 
 		for _, filter := range m.Filters {
-			go func() {
+			go func(force bool, filter Filter) {
 				filter.PeriodMaintaince(m.persister, force)
 
 				done <- true
-			}()
+			}(force, filter)
 		}
 
 		for i := 0; i < len(m.Filters); i++ {
@@ -267,6 +269,36 @@ func (m *FilterManager) Work() {
 	}
 }
 
+func (m *FilterManager) DumpFilter(name string) error {
+	if filter, ok := m.Filters[name]; ok {
+		return filter.PeriodMaintaince(m.persister, true)
+	} else {
+		return fmt.Errorf("get filter %s error", name)
+	}
+}
+
+func (m *FilterManager) ReloadFilter(name string, path string) error {
+	if _, ok := m.Filters[name]; ok {
+		f, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+
+		filter, err := loadFilter(bufio.NewReader(f))
+		if err != nil {
+			return err
+		}
+
+		m.Lock()
+		defer m.Unlock()
+		log4go.Info("reloaded filter %s from %s", name, path)
+		m.Filters[name] = filter
+		return nil
+	} else {
+		return fmt.Errorf("unknown filter name")
+	}
+}
+
 func (m *FilterManager) Stop() {
 	m.stop <- true
 }
@@ -281,6 +313,11 @@ func (m *FilterManager) GetBloomFilter(t string) (Filter, error) {
 	}
 
 	return f, nil
+}
+
+func CheckFilter(reader io.Reader) error {
+	_, err := loadFilter(reader)
+	return err
 }
 
 func loadFilter(reader io.Reader) (Filter, error) {

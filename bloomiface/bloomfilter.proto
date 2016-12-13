@@ -1,6 +1,5 @@
 syntax="proto3";
 
-//import "github.com/AgilaNews/goshare/iface/stat.proto";
 package bloomiface;
 
 service BloomFilterService {
@@ -8,6 +7,8 @@ service BloomFilterService {
     rpc Test(TestRequest) returns(TestResponse) {};
 
     //offline use
+    rpc Dump(DumpRequest) returns(EmptyMessage) {};
+    rpc Reload(ReloadRequest) returns(EmptyMessage) {};
     rpc Create(NewBloomFilterRequest) returns(EmptyMessage){};
     rpc Info(EmptyMessage) returns(InfoResponse) {};
 }
@@ -16,6 +17,15 @@ service BloomFilterService {
 enum BloomFilterType {
     CLASSIC = 0;
     ROTATED = 1;
+}
+
+message DumpRequest {
+    string Name = 1;
+}
+
+message ReloadRequest {
+    string Name = 1;
+    string Path = 2;
 }
 
 message AddRequest {

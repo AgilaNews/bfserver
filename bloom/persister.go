@@ -47,14 +47,6 @@ func (fw *fileWriter) Close() error {
 
 	linkName := filepath.Join(fw.basePath, fw.baseName)
 
-	/*
-		if origin, err := os.Readlink(linkName); err == nil {
-			log4go.Info("remove link %s => %s", linkName, origin)
-
-			os.Remove(origin)
-		}
-	*/
-
 	os.Remove(linkName)
 	log4go.Info("create link %s => %s", linkName, fw.fullpath)
 	return os.Symlink(fw.fullpath, linkName)
@@ -94,7 +86,6 @@ func (p *LocalFileFilterPersister) ListFilterNames() ([]string, error) {
 
 func (p *LocalFileFilterPersister) NewWriter(name string) (Writer, error) {
 	fullpath := filepath.Join(p.basePath, name+"."+strconv.FormatInt(time.Now().Unix(), 10))
-	time.Sleep(10 * time.Second)
 	if f, err := os.OpenFile(fullpath, os.O_WRONLY|os.O_CREATE, os.ModePerm); err != nil {
 		log4go.Info("get writer from %s error :%v", fullpath, err)
 		return nil, err

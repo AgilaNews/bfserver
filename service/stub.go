@@ -73,6 +73,14 @@ func (b *BloomFilterService) Info(ctx context.Context, req *pb.EmptyMessage) (*p
 	return nil, nil
 }
 
+func (b *BloomFilterService) Dump(ctx context.Context, req *pb.DumpRequest) (*pb.EmptyMessage, error) {
+	return &pb.EmptyMessage{}, b.Manager.DumpFilter(req.Name)
+}
+
+func (b *BloomFilterService) Reload(ctx context.Context, req *pb.ReloadRequest) (*pb.EmptyMessage, error) {
+	return &pb.EmptyMessage{}, b.Manager.ReloadFilter(req.Name, req.Path)
+}
+
 func (b *BloomFilterService) Create(ctx context.Context, req *pb.NewBloomFilterRequest) (*pb.EmptyMessage, error) {
 	resp := &pb.EmptyMessage{}
 

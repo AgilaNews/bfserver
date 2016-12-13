@@ -3,11 +3,14 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/AgilaNews/bfserver/bloom"
 	pb "github.com/AgilaNews/bfserver/bloomiface"
 	jsonpb "github.com/golang/protobuf/jsonpb"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
+	"os"
 	"strings"
+    "bufio"
 )
 
 func main() {
@@ -70,6 +73,37 @@ func main() {
 
 		for i := 0; i < len(req.Keys); i++ {
 			fmt.Println("test %s: %v", req.Keys[i], resp.Exists[i])
+		}
+	case "check":
+		f, err := os.Open(ctx)
+		if err == nil {
+			if err := bloom.CheckFilter(bufio.NewReader(f)); err != nil {
+				fmt.Println("filter format error :%v", err)
+			} else {
+				fmt.Println("file format check ok")
+			}
+		} else {
+			fmt.Println("open file error")
+		}
+	case "dump":
+		req := &pb.DumpRequest{}
+		if err := jsonpb.Unmarshal(strings.NewReader(ctx), req); err != nil {
+			panic(fmt.Sprintf("get context error:%v", err))
+		}
+		_, err := client.Dump(context.Background(), req)
+
+		if err != nil {
+			panic(fmt.Sprintf("error: %v", err))
+		}
+	case "reload":
+		req := &pb.ReloadRequest{}
+		if err := jsonpb.Unmarshal(strings.NewReader(ctx), req); err != nil {
+			panic(fmt.Sprintf("get context error:%v", err))
+		}
+		_, err := client.Reload(context.Background(), req)
+
+		if err != nil {
+			panic(fmt.Sprintf("error: %v", err))
 		}
 	}
 

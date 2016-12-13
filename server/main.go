@@ -35,6 +35,7 @@ func main() {
 	if err != nil {
 		panic("new filter manager error")
 	}
+	log4go.Info("loaded filter manager success, period:%v", g.Config.Persist.ForceDumpSeconds)
 
 	if err := manager.RecoverFilters(); err != nil {
 		panic("recover filter error")
