@@ -235,11 +235,13 @@ func (m *FilterManager) Work() {
 	should_stop := false
 
 	for {
+		log4go.Info("manager working.., last %v", m.lastForce)
 		force := false
 
 		// only force dump or stop signal received, we will force all filters to dump
 		if time.Now().Sub(m.lastForce) > m.forceDumpPeriod || should_stop {
 			force = true
+			m.lastForce = time.Now()
 		}
 
 		done := make(chan bool, len(m.Filters))

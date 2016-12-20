@@ -133,6 +133,9 @@ func (b *RotatedBloomFilter) Test(key []byte) bool {
 
 func (b *RotatedBloomFilter) PeriodMaintaince(persister FilterPersister, force bool) error {
 	need_rotated := time.Now().Sub(b.lastRotated) >= b.rotateInterval
+	log4go.Info("period maintaince of %v, last rotated: %v, period:%v, need roated %v",
+		b.Name, b.lastRotated, b.rotateInterval, need_rotated)
+
 	if need_rotated || force {
 		writer, err := persister.NewWriter(b.name)
 		defer writer.Close()
