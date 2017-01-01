@@ -19,16 +19,16 @@ func init_log() bool {
 		level = log4go.INFO
 	}
 
-	format := "[%D %t][%L] %M"
+	//	format := "[%D %t][%L] %M"
 	if Config.Log.Console {
 		log4go.Global = make(log4go.Logger)
 		fl := log4go.NewConsoleLogWriter()
-		fl.SetFormat(format)
+		//		fl.SetFormat(format)
 		log4go.AddFilter("stdout", level, fl)
 	} else {
 		log4go.Global = make(log4go.Logger)
 		fl := log4go.NewFileLogWriter(Config.Log.Path, true)
-		fl.SetFormat(format)
+		//		fl.SetFormat(format)
 		fl.SetRotateDaily(true)
 		fl.SetRotateMaxBackup(Config.Log.MaxKeepDays)
 

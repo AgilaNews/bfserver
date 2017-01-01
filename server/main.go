@@ -28,22 +28,22 @@ func main() {
 
 	persister, err := bloom.NewLocalFileFilterPersister(g.Config.Persist.Path)
 	if err != nil {
-		panic("open persister erorr")
+		log4go.Crashf("open persister erorr")
 	}
 
 	manager, err := bloom.NewFilterManager(persister, g.Config.Persist.ForceDumpSeconds)
 	if err != nil {
-		panic("new filter manager error")
+		log4go.Crashf("new filter manager error")
 	}
 	log4go.Info("loaded filter manager success, period:%v", g.Config.Persist.ForceDumpSeconds)
 
 	if err := manager.RecoverFilters(); err != nil {
-		panic("recover filter error")
+		log4go.Crashf("recover filter error")
 	}
 
 	c, err := service.NewBloomFilterServer(g.Config.Rpc.BF.Addr, manager)
 	if err != nil {
-		panic("create filter server error")
+		log4go.Crashf("create filter server error: %v", err)
 	}
 
 	wg.Add(2)

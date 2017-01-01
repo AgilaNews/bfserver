@@ -121,6 +121,7 @@ func (b *ClassicBloomFilter) Add(data []byte) Filter {
 func (b *ClassicBloomFilter) Reset() {
 	b.Lock()
 	defer b.Unlock()
+
 	b.buckets.Reset()
 }
 

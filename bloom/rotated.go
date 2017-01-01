@@ -134,7 +134,7 @@ func (b *RotatedBloomFilter) Test(key []byte) bool {
 func (b *RotatedBloomFilter) PeriodMaintaince(persister FilterPersister, force bool) error {
 	need_rotated := time.Now().Sub(b.lastRotated) >= b.rotateInterval
 	log4go.Info("period maintaince of %v, last rotated: %v, period:%v, need roated %v",
-		b.Name, b.lastRotated, b.rotateInterval, need_rotated)
+		b.Name(), b.lastRotated, b.rotateInterval, need_rotated)
 
 	if need_rotated || force {
 		writer, err := persister.NewWriter(b.name)
@@ -167,6 +167,7 @@ func (b *RotatedBloomFilter) PeriodMaintaince(persister FilterPersister, force b
 	return nil
 }
 
+//this function is not thread safe
 func (b *RotatedBloomFilter) dropOneRep() {
 	b.innerFilters[b.current].Reset()
 	b.current = (b.current + 1) % b.r
@@ -223,8 +224,6 @@ func (b *RotatedBloomFilter) Load(r io.Reader) error {
 }
 
 func (b *RotatedBloomFilter) Dump(w io.Writer) error {
-	//	b.Lock()
-	//	defer b.Unlock()
 	enc := gob.NewEncoder(w)
 
 	header := RotatedBloomFilterHeader{

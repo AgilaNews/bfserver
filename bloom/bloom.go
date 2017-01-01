@@ -178,11 +178,12 @@ func (m *FilterManager) AddNewBloomFilter(t string, options FilterOptions) (Filt
 		return nil, err
 	}
 
-	m.RLock()
+	m.Lock()
+	defer m.Unlock()
+
 	if _, ok := m.Filters[options.Name]; ok {
 		return nil, fmt.Errorf("bloom filter exists")
 	}
-	m.RUnlock()
 
 	switch t {
 	case FILTER_CLASSIC:
@@ -192,9 +193,6 @@ func (m *FilterManager) AddNewBloomFilter(t string, options FilterOptions) (Filt
 	default:
 		return nil, fmt.Errorf("invalid bf type: %s", t)
 	}
-
-	m.Lock()
-	defer m.Unlock()
 
 	m.Filters[options.Name] = filter
 
